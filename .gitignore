@@ -1,0 +1,29 @@
+# Test data
+test_data/
+
+# Rust build artifacts
+target/
+Cargo.lock
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug files
+*.pdb
+
+# Backup files
+*.bak
+*.backup
+
+# Fren runtime files
+.fren_history.json
+.fren_audit.log
+
