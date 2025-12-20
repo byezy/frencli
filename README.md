@@ -11,7 +11,7 @@ A fast, powerful command-line batch file renaming tool inspired by the "Multi-Re
 - **Modifiers**: Built-in support for lowercasing, uppercasing, title casing, and regex replacement.
 - **Undo Facility**: Easily reverse your last batch of changes if you make a mistake.
 - **Collision Protection**: Skips existing target files by default.
-- **Multi-Subcommand Support**: Commands can be specified in any order for easier editing.
+- **Multi-Subcommand Support**: Subcommands can be specified in any order for easier editing.
 
 ## Installation
 
@@ -33,10 +33,10 @@ cp ./target/release/fren ~/.local/bin/
 ## Usage
 
 ```bash
-fren <COMMAND> [OPTIONS]
+fren <SUBCOMMAND> [OPTIONS]
 ```
 
-### Commands
+### Subcommands
 
 - `list`: List files matching patterns
 - `validate`: Validate a rename pattern
@@ -46,9 +46,9 @@ fren <COMMAND> [OPTIONS]
 - `undo`: Undo operations (`check` or `apply`)
 - `audit`: View audit log entries
 
-### Command Order Flexibility
+### Subcommand Order Flexibility
 
-**Commands can be specified in any order** - the execution order is determined internally based on logical dependencies. This design makes it much easier to edit command lines, especially when working with different file sets.
+**Subcommands can be specified in any order** - the execution order is determined internally based on logical dependencies. This design makes it much easier to edit command lines, especially when working with different file sets.
 
 **Tip**: If you are going to run a rename pattern multiple times on different file sets, place `list` at the end of your command for easier editing.
 
@@ -210,7 +210,7 @@ fren list "*.txt" transform "%R/_/-%N.%E" rename --yes
 
 ### Undo
 
-The `undo` command allows you to reverse the very last batch of renames performed in the current directory. It uses a hidden `.fren_history.json` file to keep track of changes.
+The `undo` subcommand allows you to reverse the very last batch of renames performed in the current directory. It uses a hidden `.fren_history.json` file to keep track of changes.
 
 ```bash
 # Check what can be undone
