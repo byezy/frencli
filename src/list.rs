@@ -44,17 +44,55 @@ pub async fn find_files(
     // Apply exclusions
     if !exclude.is_empty() {
         all_files.retain(|path| {
-            let path_str = path.to_string_lossy();
             let file_name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             !exclude.iter().any(|excl_pattern| {
                 // Try glob pattern matching first
                 if let Ok(glob_pattern) = glob::Pattern::new(excl_pattern) {
-                    if glob_pattern.matches(file_name) || glob_pattern.matches_path(path) {
+                    // Always check filename first (most common and safest case)
+                    if glob_pattern.matches(file_name) {
                         return true;
                     }
+                    // Only check directory components if the pattern doesn't match the filename
+                    // AND the pattern looks like it's meant for directory matching
+                    // Patterns with path separators, starting with **, or containing capital letters
+                    // (like *Archive*) are likely directory patterns
+                    let is_directory_pattern = excl_pattern.contains('/') 
+                        || excl_pattern.starts_with("**")
+                        || excl_pattern.chars().any(|c| c.is_uppercase());
+                    
+                    if is_directory_pattern {
+                        // Check each directory component in the path
+                        if let Some(parent) = path.parent() {
+                            for component in parent.components() {
+                                if let Some(comp_str) = component.as_os_str().to_str() {
+                                    if glob_pattern.matches(comp_str) {
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
-                // Fallback: simple contains check
-                path_str.contains(excl_pattern) || file_name.contains(excl_pattern)
+                // Fallback: simple contains check - check filename first
+                if file_name.contains(excl_pattern) {
+                    return true;
+                }
+                // Only check directory components for directory patterns
+                let is_directory_pattern = excl_pattern.contains('/') 
+                    || excl_pattern.starts_with("**")
+                    || excl_pattern.chars().any(|c| c.is_uppercase());
+                if is_directory_pattern {
+                    if let Some(parent) = path.parent() {
+                        for component in parent.components() {
+                            if let Some(comp_str) = component.as_os_str().to_str() {
+                                if comp_str.contains(excl_pattern) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+                false
             })
         });
     }

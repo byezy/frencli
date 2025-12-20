@@ -84,9 +84,8 @@ pub async fn handle_rename_command(
         Ok(execution) => {
             // Report results
             if !execution.skipped.is_empty() {
-                println!("\nSkipped files:");
                 for (path, reason) in &execution.skipped {
-                    println!("  {}: {}", path.display(), reason);
+                    println!("Skipping {}: {}", path.display(), reason);
                 }
             }
             

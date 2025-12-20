@@ -23,7 +23,7 @@ pub fn parse_multi_subcommand(args: Vec<String>) -> Vec<ParsedSubcommand> {
     let mut i = 0;
     
     // Known subcommand names
-    let known_subcommands = ["list", "transform", "validate", "rename", "template", "undo", "audit"];
+    let known_subcommands = ["list", "transform", "validate", "rename", "template", "undo", "audit", "interactive"];
     
     while i < args.len() {
         let arg = &args[i];
@@ -50,17 +50,53 @@ pub fn parse_multi_subcommand(args: Vec<String>) -> Vec<ParsedSubcommand> {
                     let mut flag_values = Vec::new();
                     i += 1;
                     
-                    // Collect flag values (until next flag or subcommand)
-                    while i < args.len() {
-                        let val = &args[i];
-                        if val.starts_with("--") || known_subcommands.contains(&val.as_str()) {
-                            break;
-                        }
-                        flag_values.push(val.clone());
-                        i += 1;
-                    }
+                    // Boolean flags that don't accept values
+                    let boolean_flags = ["yes", "overwrite", "recursive", "fullpath", "skip-invalid", 
+                                         "interactive", "check", "apply", "json", "no-audit", "help"];
+                    let is_boolean_flag = boolean_flags.contains(&flag_name.as_str());
                     
-                    flags.insert(flag_name, flag_values);
+                    if is_boolean_flag {
+                        // Boolean flags don't accept values - just mark the flag as present
+                        flags.insert(flag_name, Vec::new());
+                    } else {
+                        // Collect flag values (until next flag or subcommand)
+                        while i < args.len() {
+                            let val = &args[i];
+                            if val.starts_with("--") || known_subcommands.contains(&val.as_str()) {
+                                break;
+                            }
+                            // For non-boolean flags (like --exclude, --use), allow values starting with '-'
+                            // as they could be filenames/patterns
+                            flag_values.push(val.clone());
+                            i += 1;
+                        }
+                        flags.insert(flag_name, flag_values);
+                    }
+                } else if next_arg.starts_with("-") && !next_arg.starts_with("--") && next_arg.len() > 1 {
+                    // Single dash argument (like -y, -r, etc.)
+                    // Only --<something> is interpreted as flags. Single dash arguments
+                    // are treated as positional arguments (filenames/patterns) for subcommands
+                    // that accept them, or rejected if the subcommand doesn't accept positional args.
+                    let accepts_positional_args = matches!(subcommand_name.as_str(), "list" | "transform");
+                    
+                    if accepts_positional_args {
+                        // This could be a filename or pattern starting with '-', treat as positional arg
+                        subcommand_args.push(next_arg.clone());
+                        i += 1;
+                    } else {
+                        // This subcommand doesn't accept positional args, so -X is clearly a short flag attempt
+                        eprintln!("Error: Short flags (like '{}') are not supported.", next_arg);
+                        eprintln!("Please use the long form instead (e.g., '--yes' instead of '-y').");
+                        eprintln!("\nCommon short flag mappings:");
+                        eprintln!("  -y, -Y  →  --yes");
+                        eprintln!("  -o, -O  →  --overwrite");
+                        eprintln!("  -r, -R  →  --recursive");
+                        eprintln!("  -e, -E  →  --exclude");
+                        eprintln!("  -h, -H  →  --help");
+                        eprintln!("  -f, -F  →  --fullpath");
+                        eprintln!("  -V, -v  →  --version");
+                        std::process::exit(1);
+                    }
                 } else {
                     // Regular argument
                     subcommand_args.push(next_arg.clone());

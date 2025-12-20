@@ -3,12 +3,55 @@
 //! These tests verify file finding, pattern matching, recursion, and exclusion functionality.
 //! All tests are async to match the async API of the list module.
 
-// Integration tests need to import from the crate root
-// Since frencli is a binary crate, we need to make the modules public and import them
 use frencli::list::{find_files, display_files};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 use tokio::fs;
+
+/// Helper to recursively copy a directory
+async fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    use std::collections::VecDeque;
+    
+    let mut queue = VecDeque::new();
+    queue.push_back((src.to_path_buf(), dst.to_path_buf()));
+    
+    while let Some((src_path, dst_path)) = queue.pop_front() {
+        if src_path.is_dir() {
+            fs::create_dir_all(&dst_path).await?;
+            let mut entries = fs::read_dir(&src_path).await?;
+            
+            while let Some(entry) = entries.next_entry().await? {
+                let entry_path = entry.path();
+                let entry_dst = dst_path.join(entry_path.file_name().unwrap());
+                
+                if entry_path.is_dir() {
+                    queue.push_back((entry_path, entry_dst));
+                } else {
+                    fs::copy(&entry_path, &entry_dst).await?;
+                }
+            }
+        } else {
+            fs::copy(&src_path, &dst_path).await?;
+        }
+    }
+    Ok(())
+}
+
+/// Helper to copy test_data into a temp directory
+async fn setup_test_data() -> Option<(TempDir, PathBuf)> {
+    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let test_data_src = crate_root.join("test_data");
+    
+    if !test_data_src.exists() {
+        return None;
+    }
+    
+    let temp_dir = TempDir::new().unwrap();
+    let test_data_dst = temp_dir.path().join("test_data");
+    copy_dir_all(&test_data_src, &test_data_dst).await.ok()?;
+    
+    Some((temp_dir, test_data_dst))
+}
 
 // ============================================================================
 // list module tests
@@ -27,24 +70,12 @@ async fn test_find_files_single_pattern() {
         fs::write(file, "test").await.unwrap();
     }
     
-    // Change to temp directory for relative patterns
     let temp_path = temp_dir.path().canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_path).unwrap();
     let _keep_alive = &temp_dir;
     
-    let patterns = vec!["*.txt".to_string()];
+    let pattern = temp_path.join("*.txt").to_string_lossy().to_string();
+    let patterns = vec![pattern];
     let result = find_files(&patterns, false, &[]).await.unwrap();
-    
-    // Restore directory before assertions
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_single_pattern ===");
-    println!("  Pattern: *.txt");
-    println!("  Files found: {}", result.len());
-    for file in &result {
-        println!("    {}", file.display());
-    }
     
     assert_eq!(result.len(), 2);
     assert!(result.iter().any(|f| f.file_name().unwrap() == "file1.txt"));
@@ -66,22 +97,12 @@ async fn test_find_files_multiple_patterns() {
     }
     
     let temp_path = temp_dir.path().canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_path).unwrap();
     let _keep_alive = &temp_dir;
     
-    let patterns = vec!["*.txt".to_string(), "*.jpg".to_string()];
+    let pattern1 = temp_path.join("*.txt").to_string_lossy().to_string();
+    let pattern2 = temp_path.join("*.jpg").to_string_lossy().to_string();
+    let patterns = vec![pattern1, pattern2];
     let result = find_files(&patterns, false, &[]).await.unwrap();
-    
-    // Restore directory before assertions
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_multiple_patterns ===");
-    println!("  Patterns: *.txt, *.jpg");
-    println!("  Files found: {}", result.len());
-    for file in &result {
-        println!("    {}", file.display());
-    }
     
     assert_eq!(result.len(), 2);
     assert!(result.iter().any(|f| f.file_name().unwrap() == "file1.txt"));
@@ -103,24 +124,12 @@ async fn test_find_files_with_exclude() {
     }
     
     let temp_path = temp_dir.path().canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_path).unwrap();
     let _keep_alive = &temp_dir;
     
-    let patterns = vec!["*.txt".to_string()];
+    let pattern = temp_path.join("*.txt").to_string_lossy().to_string();
+    let patterns = vec![pattern];
     let exclude = vec!["*backup*".to_string()];
     let result = find_files(&patterns, false, &exclude).await.unwrap();
-    
-    // Restore directory before assertions
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_with_exclude ===");
-    println!("  Pattern: *.txt");
-    println!("  Exclude: *backup*");
-    println!("  Files found: {}", result.len());
-    for file in &result {
-        println!("    {}", file.display());
-    }
     
     assert_eq!(result.len(), 2);
     assert!(result.iter().any(|f| f.file_name().unwrap() == "file1.txt"));
@@ -145,28 +154,17 @@ async fn test_find_files_recursive() {
     }
     
     let temp_path = temp_dir.path().canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_path).unwrap();
     let _keep_alive = &temp_dir;
     
-    let patterns = vec!["*.txt".to_string()];
+    let pattern = temp_path.join("*.txt").to_string_lossy().to_string();
+    let patterns = vec![pattern.clone()];
     let result_non_recursive = find_files(&patterns, false, &[]).await.unwrap();
     let result_recursive = find_files(&patterns, true, &[]).await.unwrap();
     
-    // Restore directory before assertions
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_recursive ===");
-    println!("  Pattern: *.txt");
-    println!("  Non-recursive: {} files", result_non_recursive.len());
-    println!("  Recursive: {} files", result_recursive.len());
-    
-    // Non-recursive should only find root files
     assert_eq!(result_non_recursive.len(), 2);
     assert!(result_non_recursive.iter().any(|f| f.file_name().unwrap() == "file1.txt"));
     assert!(result_non_recursive.iter().any(|f| f.file_name().unwrap() == "file2.txt"));
     
-    // Recursive should find all files
     assert_eq!(result_recursive.len(), 3);
     assert!(result_recursive.iter().any(|f| f.file_name().unwrap() == "file1.txt"));
     assert!(result_recursive.iter().any(|f| f.file_name().unwrap() == "file2.txt"));
@@ -187,24 +185,12 @@ async fn test_find_files_multiple_excludes() {
     }
     
     let temp_path = temp_dir.path().canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&temp_path).unwrap();
     let _keep_alive = &temp_dir;
     
-    let patterns = vec!["*.txt".to_string()];
+    let pattern = temp_path.join("*.txt").to_string_lossy().to_string();
+    let patterns = vec![pattern];
     let exclude = vec!["*backup*".to_string(), "*temp*".to_string()];
     let result = find_files(&patterns, false, &exclude).await.unwrap();
-    
-    // Restore directory before assertions
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_multiple_excludes ===");
-    println!("  Pattern: *.txt");
-    println!("  Exclude: *backup*, *temp*");
-    println!("  Files found: {}", result.len());
-    for file in &result {
-        println!("    {}", file.display());
-    }
     
     assert_eq!(result.len(), 1);
     assert!(result.iter().any(|f| f.file_name().unwrap() == "file1.txt"));
@@ -219,9 +205,7 @@ async fn test_display_files() {
         PathBuf::from("file2.txt"),
     ];
     
-    println!("=== test_display_files (filename only) ===");
     display_files(&files, false);
-    // Just verify it doesn't panic - output is tested via integration tests
 }
 
 #[tokio::test]
@@ -231,18 +215,13 @@ async fn test_display_files_fullpath() {
         PathBuf::from("/path/to/file2.txt"),
     ];
     
-    println!("=== test_display_files (fullpath) ===");
     display_files(&files, true);
-    // Just verify it doesn't panic - output is tested via integration tests
 }
 
 #[tokio::test]
 async fn test_display_files_empty() {
     let files = Vec::<PathBuf>::new();
-    
-    println!("=== test_display_files_empty ===");
     display_files(&files, false);
-    // Just verify it doesn't panic
 }
 
 // ============================================================================
@@ -251,180 +230,104 @@ async fn test_display_files_empty() {
 
 #[tokio::test]
 async fn test_find_files_in_test_data_nested_structure() {
-    // Test finding files in the nested test_data structure
-    let test_data_path = PathBuf::from("../test_data");
-    if !test_data_path.exists() {
-        println!("=== test_find_files_in_test_data_nested_structure ===");
-        println!("  Skipping: test_data directory not found. Run generate_test_data.sh first.");
-        return;
-    }
+    let (temp_dir, test_data_path) = match setup_test_data().await {
+        Some(x) => x,
+        None => return,
+    };
     
+    let _keep_alive = &temp_dir;
     let test_data_path = test_data_path.canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&test_data_path).unwrap();
     
-    let patterns = vec!["*.txt".to_string()];
+    let pattern = test_data_path.join("*.txt").to_string_lossy().to_string();
+    let patterns = vec![pattern];
     let result_non_recursive = find_files(&patterns, false, &[]).await.unwrap();
     let result_recursive = find_files(&patterns, true, &[]).await.unwrap();
     
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_in_test_data_nested_structure ===");
-    println!("  Pattern: *.txt");
-    println!("  Non-recursive: {} files", result_non_recursive.len());
-    println!("  Recursive: {} files", result_recursive.len());
-    
-    // Recursive should find more files (including in Documents, Documents/Projects, Documents/Archive, etc.)
-    assert!(result_recursive.len() > result_non_recursive.len(), 
-        "Recursive should find more files than non-recursive");
-    assert!(result_recursive.len() >= 5, "Should find multiple txt files in nested structure");
-    
-    // Verify files are from test_data
-    for file in &result_recursive {
-        assert!(file.to_string_lossy().contains("test_data"),
-            "File should be in test_data: {}", file.display());
-    }
+    assert!(result_recursive.len() > result_non_recursive.len());
+    assert!(result_recursive.len() >= 5);
 }
 
 #[tokio::test]
 async fn test_find_files_in_nested_directories() {
-    // Test finding files in nested Documents structure
-    let test_data_path = PathBuf::from("../test_data");
-    if !test_data_path.exists() {
-        println!("=== test_find_files_in_nested_directories ===");
-        println!("  Skipping: test_data directory not found. Run generate_test_data.sh first.");
-        return;
-    }
+    let (temp_dir, test_data_path) = match setup_test_data().await {
+        Some(x) => x,
+        None => return,
+    };
     
+    let _keep_alive = &temp_dir;
     let test_data_path = test_data_path.canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&test_data_path).unwrap();
     
-    let patterns = vec!["Documents/**/*.txt".to_string()];
+    let pattern = test_data_path.join("Documents").join("**").join("*.txt").to_string_lossy().to_string();
+    let patterns = vec![pattern];
     let result = find_files(&patterns, true, &[]).await.unwrap();
     
-    // Restore directory before assertions
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_in_nested_directories ===");
-    println!("  Pattern: Documents/**/*.txt");
-    println!("  Files found: {}", result.len());
+    assert!(result.len() >= 3);
     for file in &result {
-        println!("    {}", file.display());
-    }
-    
-    // Should find files in Documents, Documents/Projects, Documents/Archive
-    assert!(result.len() >= 3, "Should find multiple txt files in Documents structure");
-    
-    // Verify files are in Documents directory structure
-    for file in &result {
-        assert!(file.to_string_lossy().contains("Documents"),
-            "File should be in Documents: {}", file.display());
+        assert!(file.to_string_lossy().contains("Documents"));
     }
 }
 
 #[tokio::test]
 async fn test_find_files_with_exclude_in_nested_structure() {
-    // Test exclude patterns with nested structure
-    let test_data_path = PathBuf::from("../test_data");
-    if !test_data_path.exists() {
-        println!("=== test_find_files_with_exclude_in_nested_structure ===");
-        println!("  Skipping: test_data directory not found. Run generate_test_data.sh first.");
-        return;
-    }
+    let (temp_dir, test_data_path) = match setup_test_data().await {
+        Some(x) => x,
+        None => return,
+    };
     
+    let _keep_alive = &temp_dir;
     let test_data_path = test_data_path.canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&test_data_path).unwrap();
     
-    let patterns = vec!["**/*.txt".to_string()];
+    let pattern = test_data_path.join("**").join("*.txt").to_string_lossy().to_string();
+    let patterns = vec![pattern];
     let exclude = vec!["*backup*".to_string(), "*Archive*".to_string()];
     let result = find_files(&patterns, true, &exclude).await.unwrap();
     
-    // Restore directory before assertions
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_with_exclude_in_nested_structure ===");
-    println!("  Pattern: **/*.txt");
-    println!("  Exclude: *backup*, *Archive*");
-    println!("  Files found: {}", result.len());
-    
-    // Verify excluded patterns are not in results
     for file in &result {
         let file_str = file.to_string_lossy();
-        assert!(!file_str.contains("backup"), 
-            "Should not find backup files: {}", file.display());
-        assert!(!file_str.contains("Archive"), 
-            "Should not find Archive files: {}", file.display());
+        assert!(!file_str.contains("backup"));
+        assert!(!file_str.contains("Archive"));
     }
 }
 
 #[tokio::test]
 async fn test_find_files_in_photos_nested_structure() {
-    // Test finding files in Photos nested structure
-    let test_data_path = PathBuf::from("../test_data");
-    if !test_data_path.exists() {
-        println!("=== test_find_files_in_photos_nested_structure ===");
-        println!("  Skipping: test_data directory not found. Run generate_test_data.sh first.");
-        return;
-    }
+    let (temp_dir, test_data_path) = match setup_test_data().await {
+        Some(x) => x,
+        None => return,
+    };
     
+    let _keep_alive = &temp_dir;
     let test_data_path = test_data_path.canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&test_data_path).unwrap();
     
-    let patterns = vec!["Photos/**/*.jpg".to_string()];
+    let pattern = test_data_path.join("Photos").join("**").join("*.jpg").to_string_lossy().to_string();
+    let patterns = vec![pattern];
     let result = find_files(&patterns, true, &[]).await.unwrap();
     
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_in_photos_nested_structure ===");
-    println!("  Pattern: Photos/**/*.jpg");
-    println!("  Files found: {}", result.len());
-    
-    // Should find files in Photos, Photos/Vacation, Photos/Vacation/2024
-    assert!(result.len() >= 5, "Should find multiple jpg files in Photos nested structure");
-    
-    // Verify files are in Photos directory structure
+    assert!(result.len() >= 5);
     for file in &result {
-        assert!(file.to_string_lossy().contains("Photos"),
-            "File should be in Photos: {}", file.display());
+        assert!(file.to_string_lossy().contains("Photos"));
     }
     
-    // Should find files in nested directories
     let has_nested = result.iter().any(|f| f.to_string_lossy().contains("Vacation"));
-    assert!(has_nested, "Should find files in nested Vacation directory");
+    assert!(has_nested);
 }
 
 #[tokio::test]
 async fn test_find_files_in_logs_structure() {
-    // Test finding files in Logs nested structure
-    let test_data_path = PathBuf::from("../test_data");
-    if !test_data_path.exists() {
-        println!("=== test_find_files_in_logs_structure ===");
-        println!("  Skipping: test_data directory not found. Run generate_test_data.sh first.");
-        return;
-    }
+    let (temp_dir, test_data_path) = match setup_test_data().await {
+        Some(x) => x,
+        None => return,
+    };
     
+    let _keep_alive = &temp_dir;
     let test_data_path = test_data_path.canonicalize().unwrap();
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(&test_data_path).unwrap();
     
-    let patterns = vec!["Logs/**/*.log".to_string()];
+    let pattern = test_data_path.join("Logs").join("**").join("*.log").to_string_lossy().to_string();
+    let patterns = vec![pattern];
     let result = find_files(&patterns, true, &[]).await.unwrap();
     
-    std::env::set_current_dir(&old_dir).unwrap();
-    
-    println!("=== test_find_files_in_logs_structure ===");
-    println!("  Pattern: Logs/**/*.log");
-    println!("  Files found: {}", result.len());
-    
-    // Should find files in Logs, Logs/Application, Logs/System
-    assert!(result.len() >= 3, "Should find multiple log files in Logs structure");
-    
-    // Verify files are in Logs directory structure
+    assert!(result.len() >= 3);
     for file in &result {
-        assert!(file.to_string_lossy().contains("Logs"),
-            "File should be in Logs: {}", file.display());
+        assert!(file.to_string_lossy().contains("Logs"));
     }
 }

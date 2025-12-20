@@ -4,7 +4,6 @@
 
 use frencli::transform::handle_transform_command;
 use freneng::RenamingEngine;
-use std::path::PathBuf;
 use tempfile::TempDir;
 use tokio::fs;
 
@@ -87,7 +86,7 @@ async fn test_handle_transform_empty_names_blocks() {
     // Note: This will exit with code 1, so we can't easily test it
     // But we can test that it returns an error or exits
     // For now, we'll test with a pattern that doesn't generate empty names
-    let result = handle_transform_command(&engine, files, "%.%E".to_string()).await;
+    let _result = handle_transform_command(&engine, files, "%.%E".to_string()).await;
     // This might exit or return error depending on implementation
     // The actual behavior is that it exits, so this test verifies the function exists
 }

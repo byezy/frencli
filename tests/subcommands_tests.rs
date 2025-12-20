@@ -244,3 +244,89 @@ fn test_parse_subcommand_order_independence() {
     assert_eq!(result2[1].name, "list");
 }
 
+// ============================================================================
+// Tests for short flag handling
+// ============================================================================
+
+#[test]
+fn test_short_flag_allowed_as_list_positional_arg() {
+    // Short flags should be allowed as positional arguments for 'list'
+    // because they could be filenames (e.g., a file named "-y")
+    let args = vec![
+        "list".to_string(),
+        "-y".to_string(),
+        "-o".to_string(),
+    ];
+    let result = parse_multi_subcommand(args);
+    
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].name, "list");
+    assert_eq!(result[0].args, vec!["-y", "-o"]);
+}
+
+#[test]
+fn test_short_flag_allowed_as_transform_positional_arg() {
+    // Short flags should be allowed as positional arguments for 'transform'
+    // because they could be patterns
+    let args = vec![
+        "transform".to_string(),
+        "-y".to_string(),
+    ];
+    let result = parse_multi_subcommand(args);
+    
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].name, "transform");
+    assert_eq!(result[0].args, vec!["-y"]);
+}
+
+#[test]
+fn test_short_flag_allowed_as_exclude_value() {
+    // Short flags should be allowed as values for --exclude
+    // because they could be exclude patterns (e.g., exclude files named "-y")
+    let args = vec![
+        "list".to_string(),
+        "*.txt".to_string(),
+        "--exclude".to_string(),
+        "-y".to_string(),
+        "-o".to_string(),
+    ];
+    let result = parse_multi_subcommand(args);
+    
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].name, "list");
+    assert_eq!(get_flag_values(&result[0].flags, "exclude"), vec!["-y", "-o"]);
+}
+
+#[test]
+fn test_short_flag_allowed_as_template_use_value() {
+    // Short flags should be allowed as values for --use
+    // because template names could theoretically start with '-'
+    let args = vec![
+        "template".to_string(),
+        "--use".to_string(),
+        "-y".to_string(),
+    ];
+    let result = parse_multi_subcommand(args);
+    
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].name, "template");
+    assert_eq!(get_flag_value(&result[0].flags, "use"), Some("-y".to_string()));
+}
+
+#[test]
+fn test_short_flag_allowed_as_mixed_list_args() {
+    // Mix of normal args and short-flag-looking args should all be accepted
+    let args = vec![
+        "list".to_string(),
+        "*.txt".to_string(),
+        "-y".to_string(),
+        "test.txt".to_string(),
+        "-o".to_string(),
+    ];
+    let result = parse_multi_subcommand(args);
+    
+    assert_eq!(result.len(), 1);
+    assert_eq!(result[0].name, "list");
+    assert_eq!(result[0].args, vec!["*.txt", "-y", "test.txt", "-o"]);
+}
+

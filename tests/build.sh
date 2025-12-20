@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Test setup script - ensures the binary is built before running tests
 # This script can be run manually or called from test setup
-# Usage: ./tests/build.rs [--force]
+# Usage: ./tests/build.sh [--force]
 
 set -e
 

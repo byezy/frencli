@@ -4,7 +4,6 @@
 
 use frencli::rename::handle_rename_command;
 use freneng::{EnginePreviewResult, FileRename};
-use std::path::PathBuf;
 use tempfile::TempDir;
 use tokio::fs;
 
@@ -66,7 +65,7 @@ async fn test_handle_rename_with_empty_names_blocks() {
     let file = temp_dir.path().join("test.txt");
     fs::write(&file, "content").await.unwrap();
     
-    let preview = EnginePreviewResult {
+    let _preview = EnginePreviewResult {
         renames: vec![FileRename {
             old_path: file.clone(),
             new_path: temp_dir.path().join(""),

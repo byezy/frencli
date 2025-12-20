@@ -1,4 +1,3 @@
-use clap::{Parser, Subcommand};
 use freneng::fs_ops::perform_renames;
 use freneng::RenamingEngine;
 use freneng::history::save_history;
@@ -25,197 +24,60 @@ use audit::handle_audit_command;
 use subcommands::{parse_multi_subcommand, get_flag_value, has_flag, get_flag_values};
 use std::path::PathBuf;
 
-#[derive(Parser, Debug)]
-#[command(name = "fren")]
-#[command(about = "Batch file renamer with pattern matching", long_about = None)]
-#[command(version)]
-struct Args {
-    /// Raw arguments for custom multi-subcommand parsing
-    #[arg(skip)]
-    raw_args: Vec<String>,
+/// Print version information
+fn print_version() {
+    println!("fren {}", env!("CARGO_PKG_VERSION"));
 }
 
-#[derive(Subcommand, Debug)]
-enum Commands {
-    /// List files matching patterns
-    List {
-        /// Search patterns (glob patterns, e.g., "*.txt")
-        #[arg(num_args = 1.., value_name = "PATTERN")]
-        pattern: Vec<String>,
-        
-        /// Recursively search subdirectories (supports ** glob pattern)
-        #[arg(long = "recursive")]
-        recursive: bool,
-        
-        /// Exclude files matching these patterns
-        #[arg(long = "exclude")]
-        exclude: Vec<String>,
-        
-        /// Display full paths instead of just filenames
-        #[arg(long = "fullpath")]
-        fullpath: bool,
-        
-        /// Chain to rename command with this pattern
-        #[arg(long = "rename", value_name = "RENAME_PATTERN")]
-        rename_pattern: Option<String>,
-        
-        /// Overwrite existing files (when using --rename)
-        #[arg(long = "overwrite")]
-        overwrite: bool,
-        
-        /// Skip confirmation prompt (when using --rename)
-        #[arg(long = "yes")]
-        yes: bool,
-    },
-    
-    /// Validate a rename pattern
-    Validate {
-        /// Search patterns (glob patterns, e.g., "*.txt")
-        #[arg(num_args = 1.., value_name = "PATTERN")]
-        pattern: Vec<String>,
-        
-        /// Recursively search subdirectories (supports ** glob pattern)
-        #[arg(short = 'r', long = "recursive")]
-        recursive: bool,
-        
-        /// Exclude files matching these patterns
-        #[arg(short = 'e', long = "exclude")]
-        exclude: Vec<String>,
-        
-        /// Skip invalid files instead of aborting
-        #[arg(long = "skip-invalid")]
-        skip_invalid: bool,
-        
-        /// Template specification (use either --change or --template, not both)
-        #[command(flatten)]
-        template_spec: TemplateSpec,
-    },
-    
-    /// Apply rename operations
-    #[command(subcommand)]
-    Apply(ApplyCommands),
-    
-    /// Directly rename files (applies immediately)
-    /// 
-    /// Operates on files from the last `list` command.
-    /// Run `fren list` first to select files, then use `fren rename` to rename them.
-    Rename {
-        /// Rename pattern/template (e.g., "%N.%E", "%N2-7.%E")
-        #[arg(value_name = "RENAME_PATTERN")]
-        rename_pattern: String,
-        
-        /// Overwrite existing files
-        #[arg(long = "overwrite")]
-        overwrite: bool,
-        
-        /// Skip confirmation prompt
-        #[arg(long = "yes")]
-        yes: bool,
-    },
-    
-    /// Template operations
-    #[command(subcommand)]
-    Template(TemplateCommands),
-    
-    /// Undo operations
-    #[command(subcommand)]
-    Undo(UndoCommands),
-}
-
-#[derive(clap::Args, Debug)]
-#[group(required = true, multiple = false)]
-pub struct TemplateSpec {
-    /// Renaming template (supports %N, %E, %F, %C, %P, %D, %L, %U, %T, %M, %R, %X)
-    #[arg(long = "change", value_name = "TEMPLATE")]
-    change: Option<String>,
-    
-    /// Use a preset template pattern (e.g., photo-date, lowercase, counter-3)
-    #[arg(long = "template", value_name = "TEMPLATE_NAME")]
-    template: Option<String>,
-}
-
-#[derive(Subcommand, Debug)]
-enum ApplyCommands {
-    /// Apply rename automatically
-    Auto {
-        /// Search patterns (glob patterns, e.g., "*.txt")
-        #[arg(num_args = 1.., value_name = "PATTERN")]
-        pattern: Vec<String>,
-        
-        /// Recursively search subdirectories (supports ** glob pattern)
-        #[arg(short = 'r', long = "recursive")]
-        recursive: bool,
-        
-        /// Exclude files matching these patterns
-        #[arg(short = 'e', long = "exclude")]
-        exclude: Vec<String>,
-        
-        /// Overwrite existing files
-        #[arg(short = 'o', long = "overwrite")]
-        overwrite: bool,
-        
-        /// Skip confirmation prompt
-        #[arg(short = 'y', long = "yes")]
-        yes: bool,
-        
-        /// Template specification (use either --change or --template, not both)
-        #[command(flatten)]
-        template_spec: TemplateSpec,
-    },
-    
-    /// Apply rename interactively
-    Interactive {
-        /// Search patterns (glob patterns, e.g., "*.txt")
-        #[arg(num_args = 1.., value_name = "PATTERN")]
-        pattern: Vec<String>,
-        
-        /// Recursively search subdirectories (supports ** glob pattern)
-        #[arg(short = 'r', long = "recursive")]
-        recursive: bool,
-        
-        /// Exclude files matching these patterns
-        #[arg(short = 'e', long = "exclude")]
-        exclude: Vec<String>,
-        
-        /// Overwrite existing files
-        #[arg(short = 'o', long = "overwrite")]
-        overwrite: bool,
-        
-        /// Template specification (use either --change or --template, not both)
-        #[command(flatten)]
-        template_spec: TemplateSpec,
-    },
-}
-
-#[derive(Subcommand, Debug)]
-enum TemplateCommands {
-    /// List all available template patterns
-    List,
-    
-    /// Use a specific template (returns the pattern)
-    Use {
-        /// Template name
-        #[arg(value_name = "NAME")]
-        name: String,
-    },
-}
-
-#[derive(Subcommand, Debug)]
-enum UndoCommands {
-    /// Check undo status
-    Check,
-    
-    /// Apply undo
-    Apply {
-        /// Skip confirmation prompt
-        #[arg(short = 'y', long = "yes")]
-        yes: bool,
-    },
+/// Print main help message
+fn print_help() {
+    println!("Batch file renamer with pattern matching");
+    println!();
+    println!("Usage: fren <SUBCOMMAND>...");
+    println!();
+    println!("Subcommands:");
+    println!("  list <PATTERN>...              List files matching patterns");
+    println!("  transform <PATTERN>            Transform file names using a pattern");
+    println!("  validate <PATTERN>...          Validate a rename pattern");
+    println!("  rename <PATTERN>               Rename files (applies immediately)");
+    println!("  template --list                List available templates");
+    println!("  template --use <NAME>           Use a template pattern");
+    println!("  undo --check                   Check undo status");
+    println!("  undo --apply                   Apply undo");
+    println!("  audit                          View audit log");
+    println!("  interactive                    Apply rename interactively");
+    println!();
+    println!("Options:");
+    println!("  --help                         Print help");
+    println!("  --version                      Print version");
+    println!();
+    println!("Examples:");
+    println!("  fren list *.txt");
+    println!("  fren list *.txt transform \"%N_backup.%E\"");
+    println!("  fren list *.txt transform \"%N_backup.%E\" rename --yes");
 }
 
 #[tokio::main]
 async fn main() {
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
+    
+    // Handle top-level flags before parsing subcommands
+    // Only check if --help/--version is the first argument (top-level)
+    // NO SHORT FLAGS - only long forms are supported
+    if !raw_args.is_empty() {
+        let first_arg = &raw_args[0];
+        if first_arg == "--version" {
+            print_version();
+            return;
+        }
+        if first_arg == "--help" {
+            print_help();
+            return;
+        }
+        // Only --<something> is interpreted as flags at top level
+        // Single dash arguments are not flags, they would be subcommands or positional args
+        // So we don't need to reject them here - they'll be handled by the parser
+    }
     
     // Store full command for audit logging
     let full_command = std::env::args().skip(1).collect::<Vec<String>>().join(" ");
@@ -225,7 +87,123 @@ async fn main() {
     
     if subcommands.is_empty() {
         // No subcommands - show help
-        Args::parse_from(["fren", "--help"]);
+        print_help();
+        return;
+    }
+    
+    // Check for --help flags in subcommands
+    // --help is only valid for a single subcommand, not in mixed commands
+    let help_subcommands: Vec<_> = subcommands.iter()
+        .filter(|s| has_flag(&s.flags, "help"))
+        .collect();
+    
+    if !help_subcommands.is_empty() {
+        // If multiple subcommands present with --help, error
+        if subcommands.len() > 1 {
+            eprintln!("Error: '--help' cannot be used with multiple subcommands.");
+            eprintln!("Use '--help' with a single subcommand, e.g.:");
+            eprintln!("  fren list --help");
+            eprintln!("  fren rename --help");
+            eprintln!("  fren validate --help");
+            std::process::exit(1);
+        }
+        
+        // Show help for the single subcommand
+        let subcmd_name = help_subcommands[0].name.as_str();
+        
+        // Manually print help for each subcommand
+        match subcmd_name {
+            "rename" => {
+                println!("Directly rename files (applies immediately)");
+                println!();
+                println!("Operates on files from the last `list` command.");
+                println!("Run `fren list` first to select files, then use `fren rename` to rename them.");
+                println!();
+                println!("Usage: fren rename <RENAME_PATTERN> [OPTIONS]");
+                println!();
+                println!("Arguments:");
+                println!("  <RENAME_PATTERN>  Rename pattern/template (e.g., \"%N.%E\", \"%N2-7.%E\")");
+                println!();
+                println!("Options:");
+                println!("      --overwrite    Overwrite existing files");
+                println!("      --yes          Skip confirmation prompt");
+                println!("  -h, --help         Print help");
+            }
+            "list" => {
+                println!("List files matching patterns");
+                println!();
+                println!("Usage: fren list <PATTERN>... [OPTIONS]");
+                println!();
+                println!("Arguments:");
+                println!("  <PATTERN>...  Search patterns (glob patterns, e.g., \"*.txt\")");
+                println!();
+                println!("Options:");
+                println!("      --recursive    Recursively search subdirectories (supports ** glob pattern)");
+                println!("      --exclude <EXCLUDE>...  Exclude files matching these patterns");
+                println!("      --fullpath     Display full paths instead of just filenames");
+                println!("      --rename <RENAME_PATTERN>  Chain to rename command with this pattern");
+                println!("      --overwrite    Overwrite existing files (when using --rename)");
+                println!("      --yes          Skip confirmation prompt (when using --rename)");
+                println!("  -h, --help         Print help");
+            }
+            "validate" => {
+                println!("Validate a rename pattern");
+                println!();
+                println!("Usage: fren validate <PATTERN>... [OPTIONS]");
+                println!();
+                println!("Arguments:");
+                println!("  <PATTERN>...  Search patterns (glob patterns, e.g., \"*.txt\")");
+                println!();
+                println!("Options:");
+                println!("  -r, --recursive    Recursively search subdirectories (supports ** glob pattern)");
+                println!("  -e, --exclude <EXCLUDE>...  Exclude files matching these patterns");
+                println!("      --skip-invalid  Skip invalid files instead of aborting");
+                println!("      --change <TEMPLATE>  Renaming template");
+                println!("      --template <TEMPLATE_NAME>  Use a preset template pattern");
+                println!("  -h, --help         Print help");
+            }
+            "transform" => {
+                eprintln!("Transform subcommand");
+                eprintln!("Usage: fren list <patterns> transform <RENAME_PATTERN>");
+                eprintln!("\nTransforms file names using a pattern without applying the rename.");
+            }
+            "template" => {
+                eprintln!("Template subcommand");
+                eprintln!("Usage:");
+                eprintln!("  fren template --list                    List available templates");
+                eprintln!("  fren list <patterns> template --use <NAME>  Use a template");
+            }
+            "undo" => {
+                eprintln!("Undo subcommand");
+                eprintln!("Usage:");
+                eprintln!("  fren undo --check   Check undo status");
+                eprintln!("  fren undo --apply    Apply undo (use --yes to skip confirmation)");
+            }
+            "audit" => {
+                eprintln!("Audit subcommand");
+                eprintln!("Usage: fren audit [--limit <n>] [--json]");
+                eprintln!("View audit log of rename operations.");
+            }
+            "interactive" => {
+                println!("Apply rename interactively");
+                println!();
+                println!("Usage: fren list <PATTERN>... [OPTIONS] transform <RENAME_PATTERN> interactive");
+                println!();
+                println!("Arguments:");
+                println!("  <PATTERN>...  Search patterns (glob patterns, e.g., \"*.txt\")");
+                println!("  <RENAME_PATTERN>  Rename pattern/template");
+                println!();
+                println!("Options:");
+                println!("      --recursive    Recursively search subdirectories");
+                println!("      --exclude <EXCLUDE>...  Exclude files matching these patterns");
+                println!("      --overwrite    Overwrite existing files");
+                println!("  -h, --help         Print help");
+            }
+            _ => {
+                eprintln!("Unknown subcommand: {}", subcmd_name);
+                print_help();
+            }
+        }
         return;
     }
     
@@ -338,7 +316,6 @@ async fn main() {
     let mut list_fullpath = false;
     let mut transform_pattern: Option<String> = None;
     let mut template_use: Option<String> = None;
-    let mut validate_overwrite = false;
     let mut validate_skip_invalid = false;
     let mut rename_overwrite = false;
     let mut rename_yes = false;
@@ -372,7 +349,6 @@ async fn main() {
                 }
             }
             "validate" => {
-                validate_overwrite = has_flag(&subcmd.flags, "overwrite");
                 validate_skip_invalid = has_flag(&subcmd.flags, "skip-invalid");
             }
             "rename" => {
@@ -483,7 +459,7 @@ async fn main() {
             std::process::exit(1);
         }).unwrap();
         
-        handle_validate_command(&engine, result, validate_overwrite, validate_skip_invalid).await;
+        handle_validate_command(&engine, result, validate_skip_invalid).await;
     }
     
     // Step 4: Execute rename (if present)
@@ -510,6 +486,12 @@ async fn main() {
             std::process::exit(1);
         }
     }
+}
+
+/// Template specification extracted from command line
+pub struct TemplateSpec {
+    pub change: Option<String>,
+    pub template: Option<String>,
 }
 
 pub fn resolve_template(template_registry: &TemplateRegistry, template_spec: &TemplateSpec) -> String {

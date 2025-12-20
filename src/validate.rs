@@ -14,17 +14,18 @@ use std::collections::HashMap;
 /// 
 /// * `engine` - The renaming engine
 /// * `preview_result` - The preview result from transform/template --use command
-/// * `overwrite` - Whether to check validation with overwrite enabled
 /// * `skip_invalid` - If true, continue even if issues found (don't abort)
 /// 
 /// # Returns
 /// 
 /// * `Ok(())` - Validation completed (may have issues if skip_invalid=true)
 /// * Exits with code 1 if validation fails and skip_invalid=false
+/// 
+/// Note: Validation always checks for existing target files (overwrite=false).
+/// The `--overwrite` flag is only applicable to the `rename` subcommand.
 pub async fn handle_validate_command(
     engine: &RenamingEngine,
     preview_result: &EnginePreviewResult,
-    overwrite: bool,
     skip_invalid: bool,
 ) {
     // First check preview-level issues (empty names, warnings)
@@ -52,11 +53,11 @@ pub async fn handle_validate_command(
         }
     }
     
-    // Run comprehensive validation
-    let validation_result = engine.validate(&preview_result.renames, overwrite).await;
+    // Run comprehensive validation (always check for existing files, overwrite=false)
+    let validation_result = engine.validate(&preview_result.renames, false).await;
     
     // Display validation results
-    display_validation_results(&validation_result, overwrite);
+    display_validation_results(&validation_result);
     
     // Summary
     let total = preview_result.renames.len();
@@ -80,7 +81,7 @@ pub async fn handle_validate_command(
 }
 
 /// Displays validation results in a clear, organized format.
-fn display_validation_results(result: &ValidationResult, overwrite: bool) {
+fn display_validation_results(result: &ValidationResult) {
     if result.valid.is_empty() && result.issues.is_empty() {
         println!("\nNo files to validate.");
         return;
@@ -143,11 +144,7 @@ fn display_validation_results(result: &ValidationResult, overwrite: bool) {
                     ValidationIssue::SourceNotReadable(_) => "Source file is not readable".to_string(),
                     ValidationIssue::ParentNotWritable(_) => "Parent directory is not writable".to_string(),
                     ValidationIssue::TargetExists(_) => {
-                        if overwrite {
-                            "Target exists (will be overwritten)".to_string()
-                        } else {
-                            "Target file already exists".to_string()
-                        }
+                        "Target file already exists".to_string()
                     },
                     ValidationIssue::CircularRename { file1, file2 } => {
                         format!("Circular dependency: {} ↔ {}", file1, file2)

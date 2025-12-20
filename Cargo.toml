@@ -2,25 +2,18 @@
 name = "frencli"
 version = "0.1.0"
 edition = "2024"
-description = "CLI frontend for fren"
+description = "CLI frontend for fren - a fast, powerful command-line batch file renaming tool"
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/byezy/frencli"
 homepage = "https://github.com/byezy/frencli"
 documentation = "https://github.com/byezy/frencli#usage"
+authors = ["byezy"]
+keywords = ["rename", "file", "batch", "cli", "pattern"]
+categories = ["command-line-utilities", "filesystem"]
 
 [dependencies]
-# When freneng is published to crates.io, change this to:
-# freneng = "0.1.0"
-# 
-# For development in the same workspace, use:
-# freneng = { path = "../freneng", version = "0.1.0" }
-#
-# For standalone repository setup, you'll need to either:
-# 1. Publish freneng to crates.io first, then use: freneng = "0.1.0"
-# 2. Or use a git dependency: freneng = { git = "https://github.com/byezy/freneng", version = "0.1.0" }
-freneng = { path = "../freneng", version = "0.1.0" }
-clap = { version = "4.5", features = ["derive"] }
+freneng = "0.1.0"
 glob = "0.3"
 chrono = "0.4"
 regex = "1.10"
@@ -37,3 +30,7 @@ tempfile = "3.23.0"
 [[bin]]
 name = "fren"
 path = "src/main.rs"
+
+[profile.test]
+# Run tests sequentially to avoid directory isolation issues
+# This is set via --test-threads=1 in practice

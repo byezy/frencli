@@ -2,7 +2,8 @@
 
 A fast, powerful command-line batch file renaming tool inspired by the "Multi-Rename Tool" in Total Commander.
 
-**📋 [Changelog](CHANGELOG.md)** - See what's new in each version
+**📋 [Changelog](CHANGELOG.md)** - See what's new in each version  
+**📖 [Usage Example](USAGE_EXAMPLE.md)** - Complete workflow demonstration
 
 ## Features
 

@@ -6,7 +6,7 @@
 //! to avoid race conditions. A static mutex ensures tests don't run in parallel.
 
 use frencli::audit::handle_audit_command;
-use freneng::audit::{log_audit_entry, clear_audit_log};
+use freneng::audit::log_audit_entry;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tempfile::TempDir;
