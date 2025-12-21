@@ -1,50 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::fs;
-use std::collections::VecDeque;
 use tempfile::TempDir;
-
-/// Helper to recursively copy a directory (synchronous)
-fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
-    let mut queue = VecDeque::new();
-    queue.push_back((src.to_path_buf(), dst.to_path_buf()));
-    
-    while let Some((src_path, dst_path)) = queue.pop_front() {
-        if src_path.is_dir() {
-            fs::create_dir_all(&dst_path)?;
-            for entry in fs::read_dir(&src_path)? {
-                let entry = entry?;
-                let entry_path = entry.path();
-                let entry_dst = dst_path.join(entry_path.file_name().unwrap());
-                
-                if entry_path.is_dir() {
-                    queue.push_back((entry_path, entry_dst));
-                } else {
-                    fs::copy(&entry_path, &entry_dst)?;
-                }
-            }
-        } else {
-            fs::copy(&src_path, &dst_path)?;
-        }
-    }
-    Ok(())
-}
-
-/// Helper to copy test_data into a temp directory
-fn setup_test_data() -> Option<(TempDir, PathBuf)> {
-    let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let test_data_src = workspace_root.join("test_data");
-    
-    if !test_data_src.exists() {
-        return None;
-    }
-    
-    let temp_dir = TempDir::new().ok()?;
-    let test_data_dst = temp_dir.path().join("test_data");
-    copy_dir_all(&test_data_src, &test_data_dst).ok()?;
-    
-    Some((temp_dir, test_data_dst))
-}
+mod test_utils;
+use test_utils::setup_test_data_sync;
 
 // Helper to check if binary can be executed (for test environment compatibility)
 fn can_execute_binary() -> bool {
@@ -295,7 +253,7 @@ fn test_full_filename_placeholder() {
 
 #[test]
 fn test_list_single_pattern() {
-    let (temp_dir, test_data_dir) = match setup_test_data() {
+    let (temp_dir, test_data_dir) = match setup_test_data_sync() {
         Some(x) => x,
         None => return,
     };
@@ -316,7 +274,7 @@ fn test_list_single_pattern() {
 
 #[test]
 fn test_list_multiple_patterns() {
-    let (temp_dir, test_data_dir) = match setup_test_data() {
+    let (temp_dir, test_data_dir) = match setup_test_data_sync() {
         Some(x) => x,
         None => return,
     };
@@ -531,7 +489,7 @@ fn test_list_recursive() {
 
 #[test]
 fn test_list_multiple_patterns_with_exclude() {
-    let (temp_dir, test_data_dir) = match setup_test_data() {
+    let (temp_dir, test_data_dir) = match setup_test_data_sync() {
         Some(x) => x,
         None => return,
     };

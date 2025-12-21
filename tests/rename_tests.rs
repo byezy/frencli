@@ -1,11 +1,14 @@
 //! Tests for the rename subcommand module.
 //! 
 //! These tests verify rename command functionality including file operations.
+//! All tests use isolated temp directories.
 
 use frencli::rename::handle_rename_command;
 use freneng::{EnginePreviewResult, FileRename};
 use tempfile::TempDir;
 use tokio::fs;
+mod test_utils;
+use test_utils::DirGuard;
 
 #[tokio::test]
 async fn test_handle_rename_with_yes_flag() {
@@ -145,9 +148,8 @@ async fn test_handle_rename_saves_history() {
     let file = temp_dir.path().join("old.txt");
     fs::write(&file, "content").await.unwrap();
     
-    // Change to temp directory for history
-    let old_dir = std::env::current_dir().unwrap();
-    std::env::set_current_dir(temp_dir.path()).unwrap();
+    // Change to temp directory for history (save_history writes to current directory)
+    let _guard = DirGuard::new(temp_dir.path()).unwrap();
     
     let preview = EnginePreviewResult {
         renames: vec![FileRename {
@@ -161,9 +163,6 @@ async fn test_handle_rename_saves_history() {
     
     let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true).await;
     assert!(result.is_ok());
-    
-    // Restore directory
-    std::env::set_current_dir(&old_dir).unwrap();
     
     // History should be saved (we can't easily verify without loading it)
     // But the function should complete without error

@@ -4,54 +4,11 @@
 //! All tests are async to match the async API of the list module.
 
 use frencli::list::{find_files, display_files};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use tempfile::TempDir;
 use tokio::fs;
-
-/// Helper to recursively copy a directory
-async fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
-    use std::collections::VecDeque;
-    
-    let mut queue = VecDeque::new();
-    queue.push_back((src.to_path_buf(), dst.to_path_buf()));
-    
-    while let Some((src_path, dst_path)) = queue.pop_front() {
-        if src_path.is_dir() {
-            fs::create_dir_all(&dst_path).await?;
-            let mut entries = fs::read_dir(&src_path).await?;
-            
-            while let Some(entry) = entries.next_entry().await? {
-                let entry_path = entry.path();
-                let entry_dst = dst_path.join(entry_path.file_name().unwrap());
-                
-                if entry_path.is_dir() {
-                    queue.push_back((entry_path, entry_dst));
-                } else {
-                    fs::copy(&entry_path, &entry_dst).await?;
-                }
-            }
-        } else {
-            fs::copy(&src_path, &dst_path).await?;
-        }
-    }
-    Ok(())
-}
-
-/// Helper to copy test_data into a temp directory
-async fn setup_test_data() -> Option<(TempDir, PathBuf)> {
-    let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let test_data_src = crate_root.join("test_data");
-    
-    if !test_data_src.exists() {
-        return None;
-    }
-    
-    let temp_dir = TempDir::new().unwrap();
-    let test_data_dst = temp_dir.path().join("test_data");
-    copy_dir_all(&test_data_src, &test_data_dst).await.ok()?;
-    
-    Some((temp_dir, test_data_dst))
-}
+mod test_utils;
+use test_utils::setup_test_data_async;
 
 // ============================================================================
 // list module tests
@@ -230,7 +187,7 @@ async fn test_display_files_empty() {
 
 #[tokio::test]
 async fn test_find_files_in_test_data_nested_structure() {
-    let (temp_dir, test_data_path) = match setup_test_data().await {
+    let (temp_dir, test_data_path) = match setup_test_data_async().await {
         Some(x) => x,
         None => return,
     };
@@ -249,7 +206,7 @@ async fn test_find_files_in_test_data_nested_structure() {
 
 #[tokio::test]
 async fn test_find_files_in_nested_directories() {
-    let (temp_dir, test_data_path) = match setup_test_data().await {
+    let (temp_dir, test_data_path) = match setup_test_data_async().await {
         Some(x) => x,
         None => return,
     };
@@ -269,7 +226,7 @@ async fn test_find_files_in_nested_directories() {
 
 #[tokio::test]
 async fn test_find_files_with_exclude_in_nested_structure() {
-    let (temp_dir, test_data_path) = match setup_test_data().await {
+    let (temp_dir, test_data_path) = match setup_test_data_async().await {
         Some(x) => x,
         None => return,
     };
@@ -291,7 +248,7 @@ async fn test_find_files_with_exclude_in_nested_structure() {
 
 #[tokio::test]
 async fn test_find_files_in_photos_nested_structure() {
-    let (temp_dir, test_data_path) = match setup_test_data().await {
+    let (temp_dir, test_data_path) = match setup_test_data_async().await {
         Some(x) => x,
         None => return,
     };
@@ -314,7 +271,7 @@ async fn test_find_files_in_photos_nested_structure() {
 
 #[tokio::test]
 async fn test_find_files_in_logs_structure() {
-    let (temp_dir, test_data_path) = match setup_test_data().await {
+    let (temp_dir, test_data_path) = match setup_test_data_async().await {
         Some(x) => x,
         None => return,
     };

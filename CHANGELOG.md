@@ -5,6 +5,21 @@ All notable changes to `frencli` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2024-12-20
+
+### Fixed
+- Removed dead code (`handle_validate`, `handle_rename`, `handle_interactive`, `confirm_renames`)
+- Improved test isolation with shared test utilities (`test_utils.rs`)
+- All tests now use sandboxed temporary directories without mutex serialization
+
+### Changed
+- Updated to use published `freneng` crate (v0.1.1) instead of path dependency
+- Refactored test infrastructure to eliminate code duplication
+- Tests now use `DirGuard` RAII pattern for directory changes where necessary
+
+### Removed
+- Removed unused imports and dead code warnings
+
 ## [0.1.0] - 2024-12-20
 
 ### Added

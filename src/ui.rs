@@ -17,15 +17,6 @@ pub fn display_preview(renames: &[FileRename]) {
     }
 }
 
-pub fn confirm_renames() -> bool {
-    print!("\nProceed with renaming? (y/N): ");
-    io::stdout().flush().unwrap();
-    
-    let mut input = String::new();
-    io::stdin().read_line(&mut input).unwrap();
-    input.trim().to_lowercase() == "y"
-}
-
 pub fn confirm_undo_conflicts(safe_count: usize) -> bool {
     print!("\nProceed with undoing {} safe renames? (y/N): ", safe_count);
     io::stdout().flush().unwrap();
