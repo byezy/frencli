@@ -5,6 +5,27 @@ All notable changes to `frencli` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2024-12-20
+
+### Added
+- Help output now fully compatible with `help-probe` for improved CLI tool discovery
+- Short flags (`-h`, `-V`) added to help output (long forms still supported)
+- Comprehensive help text for all subcommands (transform, template, undo, audit)
+
+### Changed
+- Standardized help output format following help-probe specification:
+  - Usage lines now include `[OPTIONS]` before arguments
+  - Subcommand names in main help no longer include arguments (cleaner descriptions)
+  - Consistent 4-space indentation throughout
+  - Section headers standardized (`SUBCOMMANDS:`, `OPTIONS:`)
+- Refactored help text into dedicated `help.rs` module for better code organization
+- Improved help text for transform, template, undo, and audit subcommands
+
+### Fixed
+- Subcommand descriptions now extract correctly (no longer include argument text)
+- Removed duplicate subcommand entries (template and undo now appear once each)
+- Fixed false "[OPTIONS]" argument extraction in help parsing
+
 ## [0.1.1] - 2024-12-20
 
 ### Fixed
