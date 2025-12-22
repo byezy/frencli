@@ -1,7 +1,7 @@
 //! Template subcommand for listing and using template patterns.
 //! 
 //! This module handles the `fren template` command which can list available
-//! templates or output a template pattern for use in transform operations.
+//! templates or output a template pattern for use in make operations.
 
 use crate::templates::TemplateRegistry;
 

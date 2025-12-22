@@ -5,12 +5,30 @@ All notable changes to `frencli` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-12-22
+
+### Added
+- Comprehensive test coverage for all modules:
+  - `executor_tests.rs` with 24 tests covering command execution orchestration
+  - `help_tests.rs` with 11 tests covering help output
+- Test coverage documentation (`TEST_COVERAGE.md`)
+
+### Changed
+- Major code refactoring: extracted command execution logic from `main.rs` into dedicated `executor.rs` module
+- `main.rs` reduced from 407 lines to 124 lines (70% reduction) - now focuses solely on entry point and delegation
+- Improved code organization and maintainability with clear separation of concerns
+
+### Fixed
+- All source modules now have corresponding test files ensuring comprehensive coverage
+- Test infrastructure updated to include new test files in test runner script
+
 ## [0.1.2] - 2024-12-20
 
 ### Added
 - Help output now fully compatible with `help-probe` for improved CLI tool discovery
 - Short flags (`-h`, `-V`) added to help output (long forms still supported)
-- Comprehensive help text for all subcommands (transform, template, undo, audit)
+- Comprehensive help text for all subcommands (make, template, undo, audit)
+- JSON output support for `list`, `make`, and `rename` subcommands via `--json` flag
 
 ### Changed
 - Standardized help output format following help-probe specification:
@@ -19,7 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Consistent 4-space indentation throughout
   - Section headers standardized (`SUBCOMMANDS:`, `OPTIONS:`)
 - Refactored help text into dedicated `help.rs` module for better code organization
-- Improved help text for transform, template, undo, and audit subcommands
+- Improved help text for make, template, undo, and audit subcommands
+- Renamed `transform` subcommand to `make` for better clarity and consistency
 
 ### Fixed
 - Subcommand descriptions now extract correctly (no longer include argument text)
@@ -46,7 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial release of `frencli` as a standalone crate
 - Command-line interface with preview and apply modes
-- Subcommand-based CLI structure (`list`, `validate`, `transform`, `rename`, `template`, `undo`, `audit`)
+- Subcommand-based CLI structure (`list`, `validate`, `make`, `rename`, `template`, `undo`, `audit`)
 - Multi-subcommand support - subcommands can be specified in any order
 - Custom argument parser (no external CLI dependencies)
 - Support for all `freneng` placeholders and modifiers

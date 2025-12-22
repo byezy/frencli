@@ -66,8 +66,8 @@ fn get_binary_path() -> PathBuf {
     }
 }
 
-/// Run fren with list -> transform -> (optionally) rename sequence
-/// Returns the transform preview output
+/// Run fren with list -> make -> (optionally) rename sequence
+/// Returns the make preview output
 fn run_fren(pattern: &str, rename: Option<&str>) -> Result<String, String> {
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let binary = get_binary_path();
@@ -85,20 +85,20 @@ fn run_fren(pattern: &str, rename: Option<&str>) -> Result<String, String> {
     let script_abs = script_path.canonicalize()
         .map_err(|e| format!("Failed to canonicalize script path {:?}: {}", script_path, e))?;
     
-    // Build command: sh script_path binary_path list pattern transform transform_pattern
-    // The transform subcommand takes the pattern as a positional argument (NOT a -t flag)
+    // Build command: sh script_path binary_path list pattern make make_pattern
+    // The make subcommand takes the pattern as a positional argument (NOT a -t flag)
     // We only need the preview output, not to actually rename, so we don't call rename
     let mut cmd = Command::new("sh");
     cmd.arg(&script_abs);
     cmd.arg(&binary_abs);
     cmd.arg("list");
     cmd.arg(pattern);
-    cmd.arg("transform");
+    cmd.arg("make");
     if let Some(r) = rename {
-        // Transform pattern is a positional argument, not a flag
+        // Make pattern is a positional argument, not a flag
         cmd.arg(r);
     }
-    // Don't add rename - just get the preview from transform
+    // Don't add rename - just get the preview from make
     
     // Execute via shell script - this works around Command::new() issues with binaries
     // Redirect stdin to /dev/null to prevent hanging on interactive prompts
@@ -681,11 +681,11 @@ fn test_undo_functionality() {
     // Setup: create the original file
     std::fs::write(&f1, "original").unwrap();
     
-    // 1. Rename a file using proper subcommand structure: list -> transform -> rename
+    // 1. Rename a file using proper subcommand structure: list -> make -> rename
     let mut cmd1 = Command::new(&binary);
     cmd1.arg("list")
         .arg("undo_feat1.txt")
-        .arg("transform")
+        .arg("make")
         .arg("undo_feat2.txt")
         .arg("rename")
         .arg("--yes")
@@ -766,7 +766,7 @@ fn test_overwrite_functionality() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("ov_test1.tmp")
-        .arg("transform")
+        .arg("make")
         .arg("ov_test2.tmp")
         .arg("rename")
         .arg("--yes")
@@ -783,7 +783,7 @@ fn test_overwrite_functionality() {
     let _output = Command::new(&binary)
         .arg("list")
         .arg("ov_test1.tmp")
-        .arg("transform")
+        .arg("make")
         .arg("ov_test2.tmp")
         .arg("rename")
         .arg("--yes")
@@ -877,7 +877,7 @@ fn test_undo_with_conflicts() {
     let mut cmd1 = Command::new(&binary);
     cmd1.arg("list")
         .arg("undo_conf1.txt")
-        .arg("transform")
+        .arg("make")
         .arg("undo_conf2.txt")
         .arg("rename")
         .arg("--yes")
@@ -914,7 +914,7 @@ fn test_undo_with_conflicts() {
     let output3 = Command::new(&binary)
         .arg("list")
         .arg("undo_conf1.txt")
-        .arg("transform")
+        .arg("make")
         .arg("undo_conf2.txt")
         .arg("rename")
         .arg("--yes")
@@ -1047,7 +1047,7 @@ fn test_rename_with_nested_directory_structure() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("Documents/Projects/*.txt")
-        .arg("transform")
+        .arg("make")
         .arg("%P_%L%N_%C2.%E")
         .current_dir(&test_data_dir)
         .output()
@@ -1081,7 +1081,7 @@ fn test_rename_with_deeply_nested_backups() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("Backups/2024/January/*.dat")
-        .arg("transform")
+        .arg("make")
         .arg("%P_%L%N.%E")
         .current_dir(&test_data_dir)
         .output()
@@ -1115,7 +1115,7 @@ fn test_rename_with_log_files() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("Logs/Application/*.log")
-        .arg("transform")
+        .arg("make")
         .arg("%P_%L%N_%C2.%E")
         .current_dir(&test_data_dir)
         .output()
@@ -1153,7 +1153,7 @@ fn test_rename_with_mixed_file_types_across_directories() {
         .arg("Photos/*.jpg")
         .arg("Documents/*.pdf")
         .arg("Logs/*.log")
-        .arg("transform")
+        .arg("make")
         .arg("%P_%L%N_%C2.%E")
         .current_dir(&test_data_dir)
         .output()
@@ -1258,7 +1258,7 @@ fn test_empty_name_blocking() {
     let mut cmd = Command::new(&binary);
     cmd.arg("list")
         .arg("photo_001.jpg")
-        .arg("transform")
+        .arg("make")
         .arg("%X/.//")
         .arg("rename")
         .arg("--yes")
@@ -1281,7 +1281,7 @@ fn test_unknown_token_warning() {
     let mut cmd = Command::new(&binary);
     cmd.arg("list")
         .arg("photo_001.jpg")
-        .arg("transform")
+        .arg("make")
         .arg("test%Z")
         .current_dir(&test_data_dir)
         .stdin(Stdio::null());
@@ -1333,7 +1333,7 @@ fn test_recursive_directory_support() {
         .arg("list")
         .arg("*.jpg")
         .arg("--recursive")
-        .arg("transform")
+        .arg("make")
         .arg("renamed_%C2.%E")
         .current_dir(&test_dir)
         .output()
@@ -1373,7 +1373,7 @@ fn test_recursive_with_double_star_pattern() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("**/*.txt")
-        .arg("transform")
+        .arg("make")
         .arg("renamed_%C2.%E")
         .current_dir(&test_dir)
         .output()
@@ -1406,7 +1406,7 @@ fn test_non_recursive_does_not_search_subdirs() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("*.txt")
-        .arg("transform")
+        .arg("make")
         .arg("renamed.%E")
         .current_dir(&test_dir)
         .output()
@@ -1579,11 +1579,11 @@ fn test_interactive_mode_with_pattern() {
     let test_data_dir = workspace_root.join("test_data");
     
     // Just verify the command is accepted (won't actually run interactively in test)
-    // Interactive mode uses: list -> transform -> rename --interactive
+    // Interactive mode uses: list -> make -> rename --interactive
     let output = Command::new(&binary)
         .arg("list")
         .arg("*.txt")
-        .arg("transform")
+        .arg("make")
         .arg("%N.%E")
         .arg("rename")
         .arg("--interactive")

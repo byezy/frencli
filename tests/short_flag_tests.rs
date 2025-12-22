@@ -130,7 +130,7 @@ fn test_short_flag_rejected_when_not_positional() {
     let binary = get_binary_path();
     
     // Test that short flags are rejected for subcommands that don't accept positional args
-    // For subcommands that DO accept positional args (list, transform), -X is treated as a filename
+    // For subcommands that DO accept positional args (list, make), -X is treated as a filename
     let test_cases: Vec<Vec<&str>> = vec![
         vec!["rename", "-y"],   // rename doesn't accept positional args, so -y is rejected
         vec!["rename", "-o"],   // rename doesn't accept positional args, so -o is rejected

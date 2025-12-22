@@ -27,7 +27,7 @@ async fn test_handle_rename_with_yes_flag() {
     };
     
     // With yes=true, should rename without prompting
-    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true).await;
+    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true, false).await;
     assert!(result.is_ok());
     
     // Verify file was renamed
@@ -54,7 +54,7 @@ async fn test_handle_rename_with_overwrite() {
     };
     
     // With overwrite=true, should overwrite existing file
-    let result = handle_rename_command(preview, true, true, false, "test command".to_string(), None, true).await;
+    let result = handle_rename_command(preview, true, true, false, "test command".to_string(), None, true, false).await;
     assert!(result.is_ok());
     
     // Verify old file is gone and new file exists
@@ -99,7 +99,7 @@ async fn test_handle_rename_with_warnings() {
     };
     
     // Should display warnings but continue
-    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true).await;
+    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true, false).await;
     assert!(result.is_ok());
 }
 
@@ -132,7 +132,7 @@ async fn test_handle_rename_multiple_files() {
         has_empty_names: false,
     };
     
-    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true).await;
+    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true, false).await;
     assert!(result.is_ok());
     
     // Verify all files renamed
@@ -161,7 +161,7 @@ async fn test_handle_rename_saves_history() {
         has_empty_names: false,
     };
     
-    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true).await;
+    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true, false).await;
     assert!(result.is_ok());
     
     // History should be saved (we can't easily verify without loading it)

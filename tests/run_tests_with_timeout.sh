@@ -25,13 +25,15 @@ SKIPPED=0
 # Test files to check
 TEST_FILES=(
     "audit_tests"
+    "executor_tests"
+    "help_tests"
     "integration_tests"
     "list_tests"
     "rename_tests"
     "subcommands_tests"
     "template_tests"
     "templates_tests"
-    "transform_tests"
+    "make_tests"
     "ui_tests"
     "undo_tests"
     "validate_tests"

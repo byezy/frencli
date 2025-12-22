@@ -124,6 +124,30 @@ pub fn display_files(files: &[PathBuf], fullpath: bool) {
     }
 }
 
+/// Displays the list of found files as JSON.
+/// 
+/// # Arguments
+/// 
+/// * `files` - List of file paths to display
+/// * `fullpath` - If true, include full paths; if false, include just filenames
+pub fn display_files_json(files: &[PathBuf], fullpath: bool) {
+    
+    let json_files: Vec<String> = files.iter().map(|file| {
+        if fullpath {
+            file.to_string_lossy().to_string()
+        } else {
+            file.file_name()
+                .and_then(|n| n.to_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "?".to_string())
+        }
+    }).collect();
+    
+    let json_str = serde_json::to_string_pretty(&json_files)
+        .unwrap_or_else(|_| "[]".to_string());
+    println!("{}", json_str);
+}
+
 /// Handles the list subcommand.
 /// 
 /// # Arguments

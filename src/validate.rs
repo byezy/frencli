@@ -13,7 +13,7 @@ use std::collections::HashMap;
 /// # Arguments
 /// 
 /// * `engine` - The renaming engine
-/// * `preview_result` - The preview result from transform/template --use command
+/// * `preview_result` - The preview result from make/template --use command
 /// * `skip_invalid` - If true, continue even if issues found (don't abort)
 /// 
 /// # Returns

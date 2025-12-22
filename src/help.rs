@@ -10,7 +10,7 @@ pub fn print_main_help() {
     println!();
     println!("SUBCOMMANDS:");
     println!("    list        List files matching patterns");
-    println!("    transform   Transform file names using a pattern");
+    println!("    make        Make file names using a pattern (preview)");
     println!("    validate    Validate a rename pattern");
     println!("    rename      Rename files (applies immediately)");
     println!("    template    Manage templates");
@@ -24,8 +24,8 @@ pub fn print_main_help() {
     println!();
     println!("Examples:");
     println!("  fren list *.txt");
-    println!("  fren list *.txt transform \"%N_backup.%E\"");
-    println!("  fren list *.txt transform \"%N_backup.%E\" rename --yes");
+    println!("  fren list *.txt make \"%N_backup.%E\"");
+    println!("  fren list *.txt make \"%N_backup.%E\" rename --yes");
 }
 
 /// Print help for a specific subcommand
@@ -34,7 +34,7 @@ pub fn print_subcommand_help(subcommand: &str) {
         "list" => print_list_help(),
         "rename" => print_rename_help(),
         "validate" => print_validate_help(),
-        "transform" => print_transform_help(),
+        "make" => print_make_help(),
         "template" => print_template_help(),
         "undo" => print_undo_help(),
         "audit" => print_audit_help(),
@@ -58,6 +58,7 @@ fn print_list_help() {
     println!("    --recursive              Recursively search subdirectories (supports ** glob pattern)");
     println!("    --exclude <EXCLUDE>...    Exclude files matching these patterns");
     println!("    --fullpath                Display full paths instead of just filenames");
+    println!("    --json                    Output as JSON array");
     println!("    --rename <RENAME_PATTERN>  Chain to rename command with this pattern");
     println!("    --overwrite               Overwrite existing files (when using --rename)");
     println!("    --yes                     Skip confirmation prompt (when using --rename)");
@@ -78,6 +79,7 @@ fn print_rename_help() {
     println!("Options:");
     println!("    --overwrite    Overwrite existing files");
     println!("    --yes          Skip confirmation prompt");
+    println!("    --json         Output as JSON");
     println!("    -h, --help     Print help");
 }
 
@@ -98,19 +100,20 @@ fn print_validate_help() {
     println!("    -h, --help                     Print help");
 }
 
-fn print_transform_help() {
-    println!("Transform file names using a pattern");
+fn print_make_help() {
+    println!("Make file names using a pattern");
     println!();
-    println!("Transforms file names using a pattern without applying the rename.");
+    println!("Generates a preview of file names using a pattern without applying the rename.");
     println!("Operates on files from the last `list` command.");
     println!();
-    println!("Usage: fren transform [OPTIONS] <RENAME_PATTERN>");
+    println!("Usage: fren make [OPTIONS] <RENAME_PATTERN>");
     println!();
     println!("Arguments:");
-    println!("    <RENAME_PATTERN>    Pattern to transform file names");
+    println!("    <RENAME_PATTERN>    Pattern to generate new file names");
     println!();
     println!("Options:");
-    println!("    -h, --help    Print help");
+    println!("    --json         Output as JSON");
+    println!("    -h, --help     Print help");
 }
 
 fn print_template_help() {
@@ -168,8 +171,8 @@ fn print_interactive_help() {
     println!();
     println!("Usage: fren interactive [OPTIONS]");
     println!();
-    println!("Note: This subcommand is typically used with `list` and `transform`:");
-    println!("    fren list <PATTERN>... [OPTIONS] transform <RENAME_PATTERN> interactive");
+    println!("Note: This subcommand is typically used with `list` and `make`:");
+    println!("    fren list <PATTERN>... [OPTIONS] make <RENAME_PATTERN> interactive");
     println!();
     println!("Arguments:");
     println!("    <PATTERN>...        Search patterns (glob patterns, e.g., \"*.txt\")");

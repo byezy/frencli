@@ -5,22 +5,16 @@ mod templates;
 mod subcommands;
 mod template;
 mod help;
+mod executor;
 pub mod list;
-pub mod transform;
+pub mod make;
 pub mod rename;
 pub mod validate;
 pub mod undo;
 pub mod audit;
+use subcommands::{parse_multi_subcommand, has_flag};
+use executor::{handle_standalone_commands, validate_subcommand_combinations, extract_config, execute_command_pipeline};
 use templates::TemplateRegistry;
-use list::find_files;
-use transform::handle_transform_command;
-use rename::handle_rename_command;
-use template::handle_template_command;
-use validate::handle_validate_command;
-use undo::{handle_undo_check, handle_undo_apply};
-use audit::handle_audit_command;
-use subcommands::{parse_multi_subcommand, get_flag_value, has_flag, get_flag_values};
-use std::path::PathBuf;
 
 /// Print version information
 fn print_version() {
@@ -87,309 +81,43 @@ async fn main() {
     let engine = RenamingEngine;
     let template_registry = TemplateRegistry::new();
     
-    // Check if template --list is present - if so, execute it alone and exit
-    for subcmd in &subcommands {
-        if subcmd.name == "template" && has_flag(&subcmd.flags, "list") {
-            match handle_template_command(&template_registry, true, None) {
-                Ok(_) => return,
-                Err(e) => {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
-                }
-            }
-        }
-    }
-    
-    // Check if undo is present - it must be used alone (standalone command)
-    let has_undo = subcommands.iter().any(|s| s.name == "undo");
-    if has_undo {
-        // Check if undo is mixed with other subcommands
-        if subcommands.len() > 1 {
-            eprintln!("Error: 'undo' cannot be used with other subcommands.");
-            eprintln!("The 'undo' subcommand is very important and must be used alone.");
-            eprintln!("\nExamples:");
-            eprintln!("  fren undo --check");
-            eprintln!("  fren undo --apply");
-            eprintln!("  fren undo --apply --yes");
-            std::process::exit(1);
-        }
-        
-        // Find the undo subcommand and execute it
-        let undo_subcmd = subcommands.iter().find(|s| s.name == "undo").unwrap();
-        let has_check = has_flag(&undo_subcmd.flags, "check");
-        let has_apply = has_flag(&undo_subcmd.flags, "apply");
-        let undo_yes = has_flag(&undo_subcmd.flags, "yes");
-        
-        if has_check && has_apply {
-            eprintln!("Error: Cannot use both 'undo --check' and 'undo --apply' together.");
-            eprintln!("Use either:");
-            eprintln!("  - 'undo --check' to check what can be undone");
-            eprintln!("  - 'undo --apply' to actually perform the undo");
-            std::process::exit(1);
-        }
-        
-        if has_check {
-            handle_undo_check(&engine).await;
-            return;
-        } else if has_apply {
-            handle_undo_apply(&engine, undo_yes).await;
-            return;
-        } else {
-            eprintln!("Error: 'undo' requires either '--check' or '--apply' flag.");
-            eprintln!("Use:");
-            eprintln!("  - 'undo --check' to check what can be undone");
-            eprintln!("  - 'undo --apply' to actually perform the undo");
+    // Handle standalone commands (undo, audit, template --list)
+    match handle_standalone_commands(&subcommands, &engine, &template_registry).await {
+        Ok(Some(_)) => return, // Command executed and completed
+        Ok(None) => {}, // No standalone command, continue
+        Err(e) => {
+            eprintln!("{}", e);
             std::process::exit(1);
         }
     }
     
-    // Check if audit is present - it must be used alone (standalone command)
-    let has_audit = subcommands.iter().any(|s| s.name == "audit");
-    if has_audit {
-        // Check if audit is mixed with other subcommands
-        if subcommands.len() > 1 {
-            eprintln!("Error: 'audit' cannot be used with other subcommands.");
-            eprintln!("The 'audit' subcommand is standalone and must be used alone.");
-            eprintln!("\nExamples:");
-            eprintln!("  fren audit");
-            eprintln!("  fren audit --limit 10");
-            eprintln!("  fren audit --json");
-            std::process::exit(1);
-        }
-        
-        // Find the audit subcommand and execute it
-        let audit_subcmd = subcommands.iter().find(|s| s.name == "audit").unwrap();
-        let limit_str = get_flag_value(&audit_subcmd.flags, "limit");
-        let limit = limit_str.and_then(|s| s.parse::<usize>().ok());
-        let json = has_flag(&audit_subcmd.flags, "json");
-        
-        match handle_audit_command(limit, json).await {
-            Ok(_) => return,
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
-        }
-    }
-    
-    // Check for conflicting commands: transform and template --use cannot both be present
-    let has_transform = subcommands.iter().any(|s| s.name == "transform");
-    let has_template_use = subcommands.iter().any(|s| {
-        s.name == "template" && has_flag(&s.flags, "use")
-    });
-    
-    if has_transform && has_template_use {
-        eprintln!("Error: Cannot use both 'transform' and 'template --use' in the same command.");
-        eprintln!("Use either:");
-        eprintln!("  - 'transform <PATTERN>' to specify a pattern directly");
-        eprintln!("  - 'template --use <NAME|NUMBER>' to use a template pattern");
+    // Validate subcommand combinations
+    if let Err(e) = validate_subcommand_combinations(&subcommands) {
+        eprintln!("Error: {}", e);
         std::process::exit(1);
     }
     
-    // Collect information from all subcommands first (order doesn't matter)
-    let mut list_patterns: Option<Vec<String>> = None;
-    let mut list_recursive = false;
-    let mut list_exclude: Vec<String> = Vec::new();
-    let mut list_fullpath = false;
-    let mut transform_pattern: Option<String> = None;
-    let mut template_use: Option<String> = None;
-    let mut validate_skip_invalid = false;
-    let mut rename_overwrite = false;
-    let mut rename_yes = false;
-    let mut rename_interactive = false;
-    
-    for subcmd in &subcommands {
-        match subcmd.name.as_str() {
-            "list" => {
-                let patterns = subcmd.args.clone();
-                if patterns.is_empty() {
-                    eprintln!("Error: No search pattern provided for 'list'.");
-                    std::process::exit(1);
-                }
-                list_patterns = Some(patterns);
-                list_recursive = has_flag(&subcmd.flags, "recursive");
-                list_exclude = get_flag_values(&subcmd.flags, "exclude");
-                list_fullpath = has_flag(&subcmd.flags, "fullpath");
-            }
-            "transform" => {
-                let pattern = subcmd.args.first().cloned().unwrap_or_default();
-                if pattern.is_empty() {
-                    eprintln!("Error: Transform pattern required.");
-                    std::process::exit(1);
-                }
-                transform_pattern = Some(pattern);
-            }
-            "template" => {
-                let use_template = get_flag_value(&subcmd.flags, "use");
-                if let Some(name) = use_template {
-                    template_use = Some(name);
-                }
-            }
-            "validate" => {
-                validate_skip_invalid = has_flag(&subcmd.flags, "skip-invalid");
-            }
-            "rename" => {
-                rename_overwrite = has_flag(&subcmd.flags, "overwrite");
-                rename_yes = has_flag(&subcmd.flags, "yes");
-                rename_interactive = has_flag(&subcmd.flags, "interactive");
-                // Note: --no-audit flag is handled separately below
-            }
-            _ => {}
-        }
-    }
-    
-    // Now execute in logical order (order on command line is irrelevant)
-    let mut files: Vec<PathBuf> = Vec::new();
-    let mut preview_result: Option<freneng::EnginePreviewResult> = None;
-    
-    // Store pattern for audit logging (before it gets moved)
-    let audit_pattern = transform_pattern.clone().or_else(|| {
-        template_use.as_ref().and_then(|name| {
-            if let Ok(index) = name.parse::<usize>() {
-                let templates = template_registry.list();
-                if index > 0 && index <= templates.len() {
-                    Some(templates[index - 1].1.clone())
-                } else {
-                    None
-                }
-            } else {
-                template_registry.get(name).cloned()
-            }
-        })
-    });
-    
-    // Step 1: Execute list to get files (if present)
-    if let Some(patterns) = list_patterns {
-        match find_files(&patterns, list_recursive, &list_exclude).await {
-            Ok(found_files) => {
-                files = found_files;
-                // Display files if transform/template --use/validate/rename is not present
-                if transform_pattern.is_none() && template_use.is_none() 
-                    && !subcommands.iter().any(|s| s.name == "validate")
-                    && !subcommands.iter().any(|s| s.name == "rename") {
-                    list::display_files(&files, list_fullpath);
-                }
-            }
-            Err(e) => {
-                eprintln!("Error finding files: {}", e);
-                std::process::exit(1);
-            }
-        }
-    }
-    
-    // Step 2: Execute transform or template --use to generate preview (if present)
-    if let Some(pattern) = transform_pattern {
-        if files.is_empty() {
-            eprintln!("Error: No files to transform. 'list' subcommand is required to select files.");
-            std::process::exit(1);
-        }
-        
-        match handle_transform_command(&engine, files.clone(), pattern).await {
-            Ok(result) => {
-                preview_result = Some(result);
-            }
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
-        }
-    } else if let Some(template_name) = template_use {
-        if files.is_empty() {
-            eprintln!("Error: 'template --use' requires 'list' subcommand to select files.");
-            std::process::exit(1);
-        }
-        
-        // Get the template pattern
-        let pattern = if let Ok(index) = template_name.parse::<usize>() {
-            let templates = template_registry.list();
-            if index == 0 || index > templates.len() {
-                eprintln!("Error: Template index {} out of range (1-{})", index, templates.len());
-                std::process::exit(1);
-            }
-            templates[index - 1].1.clone()
-        } else {
-            match template_registry.get(&template_name) {
-                Some(p) => p.clone(),
-                None => {
-                    eprintln!("Error: Unknown template '{}'. Use 'template --list' to see all available templates.", template_name);
-                    std::process::exit(1);
-                }
-            }
-        };
-        
-        // Use the template pattern like transform would
-        match handle_transform_command(&engine, files.clone(), pattern).await {
-            Ok(result) => {
-                preview_result = Some(result);
-            }
-            Err(e) => {
-                eprintln!("Error: {}", e);
-                std::process::exit(1);
-            }
-        }
-    }
-    
-    // Step 3: Execute validate (if present)
-    if subcommands.iter().any(|s| s.name == "validate") {
-        let result = preview_result.as_ref().ok_or_else(|| {
-            eprintln!("Error: No preview available. 'transform' or 'template --use' subcommand is required to generate preview.");
-            std::process::exit(1);
-        }).unwrap();
-        
-        handle_validate_command(&engine, result, validate_skip_invalid).await;
-    }
-    
-    // Step 4: Execute rename (if present)
-    if subcommands.iter().any(|s| s.name == "rename") {
-        let result = preview_result.take().unwrap_or_else(|| {
-            eprintln!("Error: No preview available. 'transform' or 'template --use' subcommand is required to generate preview.");
-            std::process::exit(1);
-        });
-        
-        // Check if audit is disabled
-        let enable_audit = !subcommands.iter()
-            .any(|s| s.name == "rename" && has_flag(&s.flags, "no-audit"));
-        
-        if let Err(e) = handle_rename_command(
-            result, 
-            rename_overwrite, 
-            rename_yes, 
-            rename_interactive,
-            format!("fren {}", full_command),
-            audit_pattern.clone(),
-            enable_audit,
-        ).await {
+    // Extract configuration from subcommands
+    let config = match extract_config(&subcommands) {
+        Ok(c) => c,
+        Err(e) => {
             eprintln!("Error: {}", e);
             std::process::exit(1);
         }
-    }
-}
-
-/// Template specification extracted from command line
-pub struct TemplateSpec {
-    pub change: Option<String>,
-    pub template: Option<String>,
-}
-
-pub fn resolve_template(template_registry: &TemplateRegistry, template_spec: &TemplateSpec) -> String {
-    if let Some(template) = &template_spec.change {
-        template.clone()
-    } else if let Some(name) = &template_spec.template {
-        match template_registry.get(name) {
-            Some(pattern) => {
-                println!("Using template '{}': {}", name, pattern);
-                pattern.clone()
-            }
-            None => {
-                eprintln!("Error: Unknown template '{}'", name);
-                eprintln!("Use 'fren template list' to see all available templates");
-                std::process::exit(1);
-            }
-        }
-    } else {
-        eprintln!("Error: Template required. Use --change or --template");
+    };
+    
+    // Execute command pipeline
+    if let Err(e) = execute_command_pipeline(
+        config,
+        &subcommands,
+        &engine,
+        &template_registry,
+        full_command,
+    ).await {
+        eprintln!("{}", e);
         std::process::exit(1);
     }
 }
+
 
 

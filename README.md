@@ -41,7 +41,7 @@ fren <SUBCOMMAND> [OPTIONS]
 
 - `list`: List files matching patterns
 - `validate`: Validate a rename pattern
-- `transform`: Generate a preview from a pattern
+- `make`: Generate a preview from a pattern
 - `rename`: Directly rename files
 - `template`: Template operations (`list` or `use`)
 - `undo`: Undo operations (`check` or `apply`)
@@ -55,18 +55,18 @@ fren <SUBCOMMAND> [OPTIONS]
 
 ```bash
 # Easy to edit - just change the patterns at the end
-fren transform "%N_backup.%E" rename --yes list /some/path/*.txt
+fren make "%N_backup.%E" rename --yes list /some/path/*.txt
 
 # Same command, different files - just edit the end
-fren transform "%N_backup.%E" rename --yes list /some/other/*.jpg
+fren make "%N_backup.%E" rename --yes list /some/other/*.jpg
 ```
 
 All of these are equivalent:
-- `fren list *.txt transform "%N.%E" rename`
-- `fren transform "%N.%E" list *.txt rename`
-- `fren rename transform "%N.%E" list *.txt`
+- `fren list *.txt make "%N.%E" rename`
+- `fren make "%N.%E" list *.txt rename`
+- `fren rename make "%N.%E" list *.txt`
 
-The internal execution order is always: `list` → `transform`/`template --use` → `validate` → `rename`
+The internal execution order is always: `list` → `make`/`template --use` → `validate` → `rename`
 
 ### Examples
 
@@ -85,10 +85,10 @@ fren list "*.txt" --recursive
 **Rename files:**
 ```bash
 # Preview a rename
-fren list "*.jpg" transform "Vacation_%C3.%E"
+fren list "*.jpg" make "Vacation_%C3.%E"
 
 # Apply the rename
-fren list "*.jpg" transform "Vacation_%C3.%E" rename --yes
+fren list "*.jpg" make "Vacation_%C3.%E" rename --yes
 
 # Use a template
 fren list "*.jpg" template --use photo-date rename --yes
@@ -127,7 +127,7 @@ You can extract parts of the name or extension using `start-end` indices (1-inde
 
 ### Modifiers
 
-Modifiers apply transformations to the filename. **Order matters!** Modifiers are processed **left-to-right** as they appear in the pattern, and they operate on the **accumulated result** at the point where they are encountered.
+Modifiers apply makeations to the filename. **Order matters!** Modifiers are processed **left-to-right** as they appear in the pattern, and they operate on the **accumulated result** at the point where they are encountered.
 
 - `%L`: Lowercase the entire accumulated result.
 - `%U`: Uppercase the entire accumulated result.
@@ -187,22 +187,22 @@ Pattern processing happens in two phases:
 
 **Simple Case Modification**
 ```bash
-fren list "*.JPG" transform "%L%N.%U%E" rename --yes
+fren list "*.JPG" make "%L%N.%U%E" rename --yes
 ```
 
 **Organizing by Parent Folder**
 ```bash
-fren list "*" transform "%P_%C2_%N.%E" rename --yes
+fren list "*" make "%P_%C2_%N.%E" rename --yes
 ```
 
 **Title Casing**
 ```bash
-fren list "*.mp3" transform "%T%N.%E" rename --yes
+fren list "*.mp3" make "%T%N.%E" rename --yes
 ```
 
 **Replacement**
 ```bash
-fren list "*.txt" transform "%R/_/-%N.%E" rename --yes
+fren list "*.txt" make "%R/_/-%N.%E" rename --yes
 ```
 
 ## Safety
