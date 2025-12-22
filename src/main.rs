@@ -4,6 +4,7 @@ mod ui;
 mod templates;
 mod subcommands;
 mod template;
+mod help;
 pub mod list;
 pub mod transform;
 pub mod rename;
@@ -26,34 +27,6 @@ fn print_version() {
     println!("fren {}", env!("CARGO_PKG_VERSION"));
 }
 
-/// Print main help message
-fn print_help() {
-    println!("Batch file renamer with pattern matching");
-    println!();
-    println!("Usage: fren <SUBCOMMAND>...");
-    println!();
-    println!("Subcommands:");
-    println!("  list <PATTERN>...              List files matching patterns");
-    println!("  transform <PATTERN>            Transform file names using a pattern");
-    println!("  validate <PATTERN>...          Validate a rename pattern");
-    println!("  rename <PATTERN>               Rename files (applies immediately)");
-    println!("  template --list                List available templates");
-    println!("  template --use <NAME>           Use a template pattern");
-    println!("  undo --check                   Check undo status");
-    println!("  undo --apply                   Apply undo");
-    println!("  audit                          View audit log");
-    println!("  interactive                    Apply rename interactively");
-    println!();
-    println!("Options:");
-    println!("  --help                         Print help");
-    println!("  --version                      Print version");
-    println!();
-    println!("Examples:");
-    println!("  fren list *.txt");
-    println!("  fren list *.txt transform \"%N_backup.%E\"");
-    println!("  fren list *.txt transform \"%N_backup.%E\" rename --yes");
-}
-
 #[tokio::main]
 async fn main() {
     let raw_args: Vec<String> = std::env::args().skip(1).collect();
@@ -68,7 +41,7 @@ async fn main() {
             return;
         }
         if first_arg == "--help" {
-            print_help();
+            help::print_main_help();
             return;
         }
         // Only --<something> is interpreted as flags at top level
@@ -84,7 +57,7 @@ async fn main() {
     
     if subcommands.is_empty() {
         // No subcommands - show help
-        print_help();
+        help::print_main_help();
         return;
     }
     
@@ -107,100 +80,7 @@ async fn main() {
         
         // Show help for the single subcommand
         let subcmd_name = help_subcommands[0].name.as_str();
-        
-        // Manually print help for each subcommand
-        match subcmd_name {
-            "rename" => {
-                println!("Directly rename files (applies immediately)");
-                println!();
-                println!("Operates on files from the last `list` command.");
-                println!("Run `fren list` first to select files, then use `fren rename` to rename them.");
-                println!();
-                println!("Usage: fren rename <RENAME_PATTERN> [OPTIONS]");
-                println!();
-                println!("Arguments:");
-                println!("  <RENAME_PATTERN>  Rename pattern/template (e.g., \"%N.%E\", \"%N2-7.%E\")");
-                println!();
-                println!("Options:");
-                println!("      --overwrite    Overwrite existing files");
-                println!("      --yes          Skip confirmation prompt");
-                println!("  -h, --help         Print help");
-            }
-            "list" => {
-                println!("List files matching patterns");
-                println!();
-                println!("Usage: fren list <PATTERN>... [OPTIONS]");
-                println!();
-                println!("Arguments:");
-                println!("  <PATTERN>...  Search patterns (glob patterns, e.g., \"*.txt\")");
-                println!();
-                println!("Options:");
-                println!("      --recursive    Recursively search subdirectories (supports ** glob pattern)");
-                println!("      --exclude <EXCLUDE>...  Exclude files matching these patterns");
-                println!("      --fullpath     Display full paths instead of just filenames");
-                println!("      --rename <RENAME_PATTERN>  Chain to rename command with this pattern");
-                println!("      --overwrite    Overwrite existing files (when using --rename)");
-                println!("      --yes          Skip confirmation prompt (when using --rename)");
-                println!("  -h, --help         Print help");
-            }
-            "validate" => {
-                println!("Validate a rename pattern");
-                println!();
-                println!("Usage: fren validate <PATTERN>... [OPTIONS]");
-                println!();
-                println!("Arguments:");
-                println!("  <PATTERN>...  Search patterns (glob patterns, e.g., \"*.txt\")");
-                println!();
-                println!("Options:");
-                println!("  -r, --recursive    Recursively search subdirectories (supports ** glob pattern)");
-                println!("  -e, --exclude <EXCLUDE>...  Exclude files matching these patterns");
-                println!("      --skip-invalid  Skip invalid files instead of aborting");
-                println!("      --change <TEMPLATE>  Renaming template");
-                println!("      --template <TEMPLATE_NAME>  Use a preset template pattern");
-                println!("  -h, --help         Print help");
-            }
-            "transform" => {
-                eprintln!("Transform subcommand");
-                eprintln!("Usage: fren list <patterns> transform <RENAME_PATTERN>");
-                eprintln!("\nTransforms file names using a pattern without applying the rename.");
-            }
-            "template" => {
-                eprintln!("Template subcommand");
-                eprintln!("Usage:");
-                eprintln!("  fren template --list                    List available templates");
-                eprintln!("  fren list <patterns> template --use <NAME>  Use a template");
-            }
-            "undo" => {
-                eprintln!("Undo subcommand");
-                eprintln!("Usage:");
-                eprintln!("  fren undo --check   Check undo status");
-                eprintln!("  fren undo --apply    Apply undo (use --yes to skip confirmation)");
-            }
-            "audit" => {
-                eprintln!("Audit subcommand");
-                eprintln!("Usage: fren audit [--limit <n>] [--json]");
-                eprintln!("View audit log of rename operations.");
-            }
-            "interactive" => {
-                println!("Apply rename interactively");
-                println!();
-                println!("Usage: fren list <PATTERN>... [OPTIONS] transform <RENAME_PATTERN> interactive");
-                println!();
-                println!("Arguments:");
-                println!("  <PATTERN>...  Search patterns (glob patterns, e.g., \"*.txt\")");
-                println!("  <RENAME_PATTERN>  Rename pattern/template");
-                println!();
-                println!("Options:");
-                println!("      --recursive    Recursively search subdirectories");
-                println!("      --exclude <EXCLUDE>...  Exclude files matching these patterns");
-                println!("      --overwrite    Overwrite existing files");
-                println!("  -h, --help         Print help");
-            }
-            _ => {
-                eprintln!("Unknown subcommand: {}", subcmd_name);
-                print_help();
-            }
-        }
+        help::print_subcommand_help(subcmd_name);
         return;
     }
     
