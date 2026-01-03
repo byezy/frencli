@@ -47,23 +47,23 @@ fn create_flags(flag_name: &str, value: Option<&str>) -> HashMap<String, Vec<Str
 fn test_validate_subcommand_combinations_valid() {
     let subcommands = vec![
         create_subcommand("list", vec!["*.txt".to_string()], HashMap::new()),
-        create_subcommand("make", vec!["%N.%E".to_string()], HashMap::new()),
+        create_subcommand("rename", vec!["%N.%E".to_string()], HashMap::new()),
     ];
     assert!(validate_subcommand_combinations(&subcommands).is_ok());
 }
 
 #[test]
-fn test_validate_subcommand_combinations_make_and_template_use() {
+fn test_validate_subcommand_combinations_rename_and_template_use() {
     let mut template_flags = HashMap::new();
     template_flags.insert("use".to_string(), vec!["test".to_string()]);
     
     let subcommands = vec![
-        create_subcommand("make", vec!["%N.%E".to_string()], HashMap::new()),
+        create_subcommand("rename", vec!["%N.%E".to_string()], HashMap::new()),
         create_subcommand("template", vec![], template_flags),
     ];
     let result = validate_subcommand_combinations(&subcommands);
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("Cannot use both 'make' and 'template --use'"));
+    assert!(result.unwrap_err().contains("Cannot use both 'rename' and 'template --use'"));
 }
 
 #[test]
@@ -112,28 +112,73 @@ fn test_extract_config_list_empty_patterns() {
 }
 
 #[test]
+fn test_extract_config_list_with_files_from() {
+    let mut flags = HashMap::new();
+    flags.insert("files-from".to_string(), vec!["/tmp/filelist.txt".to_string()]);
+    
+    let subcommands = vec![
+        create_subcommand("list", vec![], flags),
+    ];
+    
+    let config = extract_config(&subcommands).unwrap();
+    assert_eq!(config.list_files_from, Some("/tmp/filelist.txt".to_string()));
+    assert_eq!(config.list_patterns, None); // Should be None when --files-from is used
+}
+
+#[test]
+fn test_extract_config_list_files_from_stdin() {
+    let mut flags = HashMap::new();
+    flags.insert("files-from".to_string(), vec!["-".to_string()]);
+    
+    let subcommands = vec![
+        create_subcommand("list", vec![], flags),
+    ];
+    
+    let config = extract_config(&subcommands).unwrap();
+    assert_eq!(config.list_files_from, Some("-".to_string()));
+    assert_eq!(config.list_patterns, None);
+}
+
+#[test]
+fn test_extract_config_list_files_from_takes_precedence() {
+    // If both --files-from and patterns are provided, --files-from should take precedence
+    // Patterns should not be set when --files-from is used
+    let mut flags = HashMap::new();
+    flags.insert("files-from".to_string(), vec!["/tmp/filelist.txt".to_string()]);
+    
+    let subcommands = vec![
+        create_subcommand("list", vec!["*.txt".to_string()], flags),
+    ];
+    
+    let config = extract_config(&subcommands).unwrap();
+    assert_eq!(config.list_files_from, Some("/tmp/filelist.txt".to_string()));
+    // Patterns should be None when --files-from is used (it takes precedence)
+    assert_eq!(config.list_patterns, None);
+}
+
+#[test]
 fn test_extract_config_make() {
     let mut flags = HashMap::new();
     flags.insert("json".to_string(), vec![]);
     
     let subcommands = vec![
-        create_subcommand("make", vec!["%N_backup.%E".to_string()], flags),
+        create_subcommand("rename", vec!["%N_backup.%E".to_string()], flags),
     ];
     
     let config = extract_config(&subcommands).unwrap();
-    assert_eq!(config.make_pattern, Some("%N_backup.%E".to_string()));
-    assert!(config.make_json);
+    assert_eq!(config.rename_pattern, Some("%N_backup.%E".to_string()));
+    assert!(config.rename_json);
 }
 
 #[test]
 fn test_extract_config_make_empty_pattern() {
     let subcommands = vec![
-        create_subcommand("make", vec![], HashMap::new()),
+        create_subcommand("rename", vec![], HashMap::new()),
     ];
     
     let result = extract_config(&subcommands);
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("Make pattern required"));
+    assert!(result.unwrap_err().contains("Rename pattern required"));
 }
 
 #[test]
@@ -163,7 +208,7 @@ fn test_extract_config_validate() {
 }
 
 #[test]
-fn test_extract_config_rename() {
+fn test_extract_config_apply() {
     let mut flags = HashMap::new();
     flags.insert("overwrite".to_string(), vec![]);
     flags.insert("yes".to_string(), vec![]);
@@ -171,14 +216,14 @@ fn test_extract_config_rename() {
     flags.insert("json".to_string(), vec![]);
     
     let subcommands = vec![
-        create_subcommand("rename", vec![], flags),
+        create_subcommand("apply", vec![], flags),
     ];
     
     let config = extract_config(&subcommands).unwrap();
-    assert!(config.rename_overwrite);
-    assert!(config.rename_yes);
-    assert!(config.rename_interactive);
-    assert!(config.rename_json);
+    assert!(config.apply_overwrite);
+    assert!(config.apply_yes);
+    assert!(config.apply_interactive);
+    assert!(config.apply_json);
 }
 
 #[test]
@@ -194,16 +239,16 @@ fn test_extract_config_multiple_subcommands() {
     
     let subcommands = vec![
         create_subcommand("list", vec!["*.txt".to_string()], list_flags),
-        create_subcommand("make", vec!["%N.%E".to_string()], make_flags),
-        create_subcommand("rename", vec![], rename_flags),
+        create_subcommand("rename", vec!["%N.%E".to_string()], make_flags),
+        create_subcommand("apply", vec![], rename_flags),
     ];
     
     let config = extract_config(&subcommands).unwrap();
     assert_eq!(config.list_patterns, Some(vec!["*.txt".to_string()]));
     assert!(config.list_recursive);
-    assert_eq!(config.make_pattern, Some("%N.%E".to_string()));
-    assert!(config.make_json);
-    assert!(config.rename_yes);
+    assert_eq!(config.rename_pattern, Some("%N.%E".to_string()));
+    assert!(config.rename_json);
+    assert!(config.apply_yes);
 }
 
 // ============================================================================
@@ -268,24 +313,24 @@ fn test_resolve_template_pattern_invalid_index() {
 // ============================================================================
 
 #[test]
-fn test_get_audit_pattern_from_make_pattern() {
+fn test_get_audit_pattern_from_rename_pattern() {
     let registry = TemplateRegistry::new();
-    let make_pattern = Some("%N_backup.%E".to_string());
+    let rename_pattern = Some("%N_backup.%E".to_string());
     let template_use = None;
     
-    let result = get_audit_pattern(&make_pattern, &template_use, &registry);
+    let result = get_audit_pattern(&rename_pattern, &template_use, &registry);
     assert_eq!(result, Some("%N_backup.%E".to_string()));
 }
 
 #[test]
 fn test_get_audit_pattern_from_template() {
     let registry = TemplateRegistry::new();
-    let make_pattern = None;
+    let rename_pattern = None;
     let templates = registry.list();
     
     if !templates.is_empty() {
         let template_use = Some("1".to_string());
-        let result = get_audit_pattern(&make_pattern, &template_use, &registry);
+        let result = get_audit_pattern(&rename_pattern, &template_use, &registry);
         // Should resolve to the template pattern
         assert!(result.is_some());
     }
@@ -294,21 +339,21 @@ fn test_get_audit_pattern_from_template() {
 #[test]
 fn test_get_audit_pattern_none() {
     let registry = TemplateRegistry::new();
-    let make_pattern = None;
+    let rename_pattern = None;
     let template_use = None;
     
-    let result = get_audit_pattern(&make_pattern, &template_use, &registry);
+    let result = get_audit_pattern(&rename_pattern, &template_use, &registry);
     assert_eq!(result, None);
 }
 
 #[test]
-fn test_get_audit_pattern_prefers_make_over_template() {
+fn test_get_audit_pattern_prefers_rename_over_template() {
     let registry = TemplateRegistry::new();
-    let make_pattern = Some("%N.%E".to_string());
+    let rename_pattern = Some("%N.%E".to_string());
     let template_use = Some("1".to_string());
     
-    let result = get_audit_pattern(&make_pattern, &template_use, &registry);
-    // Should prefer make_pattern
+    let result = get_audit_pattern(&rename_pattern, &template_use, &registry);
+    // Should prefer rename_pattern
     assert_eq!(result, Some("%N.%E".to_string()));
 }
 

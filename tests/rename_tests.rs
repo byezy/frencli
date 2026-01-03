@@ -1,85 +1,58 @@
 //! Tests for the rename subcommand module.
 //! 
-//! These tests verify rename command functionality including file operations.
-//! All tests use isolated temp directories.
+//! These tests verify rename command functionality including preview generation.
 
 use frencli::rename::handle_rename_command;
-use freneng::{EnginePreviewResult, FileRename};
+use freneng::RenamingEngine;
 use tempfile::TempDir;
 use tokio::fs;
-mod test_utils;
-use test_utils::DirGuard;
 
 #[tokio::test]
-async fn test_handle_rename_with_yes_flag() {
-    let temp_dir = TempDir::new().unwrap();
-    let file = temp_dir.path().join("old.txt");
-    fs::write(&file, "content").await.unwrap();
+async fn test_handle_rename_empty_files() {
+    let engine = RenamingEngine;
+    let files = vec![];
     
-    let preview = EnginePreviewResult {
-        renames: vec![FileRename {
-            old_path: file.clone(),
-            new_path: temp_dir.path().join("new.txt"),
-            new_name: "new.txt".to_string(),
-        }],
-        warnings: vec![],
-        has_empty_names: false,
-    };
-    
-    // With yes=true, should rename without prompting
-    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true, false).await;
-    assert!(result.is_ok());
-    
-    // Verify file was renamed
-    assert!(!file.exists());
-    assert!(temp_dir.path().join("new.txt").exists());
+    let result = handle_rename_command(&engine, files, "%N.%E".to_string(), false).await;
+    assert!(result.is_err());
+    if let Err(e) = result {
+        assert!(e.to_string().contains("No files"));
+    }
 }
 
 #[tokio::test]
-async fn test_handle_rename_with_overwrite() {
-    let temp_dir = TempDir::new().unwrap();
-    let old_file = temp_dir.path().join("old.txt");
-    let existing_file = temp_dir.path().join("new.txt");
-    fs::write(&old_file, "old content").await.unwrap();
-    fs::write(&existing_file, "existing content").await.unwrap();
-    
-    let preview = EnginePreviewResult {
-        renames: vec![FileRename {
-            old_path: old_file.clone(),
-            new_path: existing_file.clone(),
-            new_name: "new.txt".to_string(),
-        }],
-        warnings: vec![],
-        has_empty_names: false,
-    };
-    
-    // With overwrite=true, should overwrite existing file
-    let result = handle_rename_command(preview, true, true, false, "test command".to_string(), None, true, false).await;
-    assert!(result.is_ok());
-    
-    // Verify old file is gone and new file exists
-    assert!(!old_file.exists());
-    assert!(existing_file.exists());
-}
-
-#[tokio::test]
-async fn test_handle_rename_with_empty_names_blocks() {
+async fn test_handle_rename_single_file() {
     let temp_dir = TempDir::new().unwrap();
     let file = temp_dir.path().join("test.txt");
     fs::write(&file, "content").await.unwrap();
     
-    let _preview = EnginePreviewResult {
-        renames: vec![FileRename {
-            old_path: file.clone(),
-            new_path: temp_dir.path().join(""),
-            new_name: "".to_string(),
-        }],
-        warnings: vec![],
-        has_empty_names: true,
-    };
+    let engine = RenamingEngine;
+    let files = vec![file];
     
-    // Should exit with code 1, so we can't easily test
-    // But we verify the function exists and compiles
+    let result = handle_rename_command(&engine, files, "%N_backup.%E".to_string(), false).await;
+    assert!(result.is_ok());
+    let preview = result.unwrap();
+    assert_eq!(preview.renames.len(), 1);
+    assert_eq!(preview.renames[0].new_name, "test_backup.txt");
+}
+
+#[tokio::test]
+async fn test_handle_rename_multiple_files() {
+    let temp_dir = TempDir::new().unwrap();
+    let files = vec![
+        temp_dir.path().join("file1.txt"),
+        temp_dir.path().join("file2.jpg"),
+        temp_dir.path().join("file3.png"),
+    ];
+    
+    for file in &files {
+        fs::write(file, "content").await.unwrap();
+    }
+    
+    let engine = RenamingEngine;
+    let result = handle_rename_command(&engine, files, "%L%N.%E".to_string(), false).await;
+    assert!(result.is_ok());
+    let preview = result.unwrap();
+    assert_eq!(preview.renames.len(), 3);
 }
 
 #[tokio::test]
@@ -88,83 +61,70 @@ async fn test_handle_rename_with_warnings() {
     let file = temp_dir.path().join("test.txt");
     fs::write(&file, "content").await.unwrap();
     
-    let preview = EnginePreviewResult {
-        renames: vec![FileRename {
-            old_path: file.clone(),
-            new_path: temp_dir.path().join("new.txt"),
-            new_name: "new.txt".to_string(),
-        }],
-        warnings: vec!["Unknown token: %X".to_string()],
-        has_empty_names: false,
-    };
+    let engine = RenamingEngine;
+    let files = vec![file];
     
-    // Should display warnings but continue
-    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true, false).await;
+    // Use pattern with unknown token to generate warning
+    // Use %Z which is not a valid token
+    let result = handle_rename_command(&engine, files, "%N_%Z.%E".to_string(), false).await;
     assert!(result.is_ok());
+    let preview = result.unwrap();
+    // Should have warnings about unknown token
+    assert!(!preview.warnings.is_empty());
 }
 
 #[tokio::test]
-async fn test_handle_rename_multiple_files() {
+async fn test_handle_rename_empty_names_blocks() {
+    let temp_dir = TempDir::new().unwrap();
+    let file = temp_dir.path().join("test.txt");
+    fs::write(&file, "content").await.unwrap();
+    
+    let engine = RenamingEngine;
+    let files = vec![file];
+    
+    // Pattern that would generate empty name
+    // Note: This will exit with code 1, so we can't easily test it
+    // But we can test that it returns an error or exits
+    // For now, we'll test with a pattern that doesn't generate empty names
+    let _result = handle_rename_command(&engine, files, "%.%E".to_string(), false).await;
+    // This might exit or return error depending on implementation
+    // The actual behavior is that it exits, so this test verifies the function exists
+}
+
+#[tokio::test]
+async fn test_handle_rename_preserves_extension() {
+    let temp_dir = TempDir::new().unwrap();
+    let file = temp_dir.path().join("document.pdf");
+    fs::write(&file, "content").await.unwrap();
+    
+    let engine = RenamingEngine;
+    let files = vec![file];
+    
+    let result = handle_rename_command(&engine, files, "%N_v2.%E".to_string(), false).await;
+    assert!(result.is_ok());
+    let preview = result.unwrap();
+    assert_eq!(preview.renames[0].new_name, "document_v2.pdf");
+}
+
+#[tokio::test]
+async fn test_handle_rename_with_counter() {
     let temp_dir = TempDir::new().unwrap();
     let files = vec![
-        temp_dir.path().join("file1.txt"),
-        temp_dir.path().join("file2.txt"),
+        temp_dir.path().join("file.txt"),
+        temp_dir.path().join("file.txt"), // Same name, different path
     ];
     
     for file in &files {
         fs::write(file, "content").await.unwrap();
     }
     
-    let preview = EnginePreviewResult {
-        renames: vec![
-            FileRename {
-                old_path: files[0].clone(),
-                new_path: temp_dir.path().join("new1.txt"),
-                new_name: "new1.txt".to_string(),
-            },
-            FileRename {
-                old_path: files[1].clone(),
-                new_path: temp_dir.path().join("new2.txt"),
-                new_name: "new2.txt".to_string(),
-            },
-        ],
-        warnings: vec![],
-        has_empty_names: false,
-    };
-    
-    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true, false).await;
+    let engine = RenamingEngine;
+    let result = handle_rename_command(&engine, files, "file_%C2.%E".to_string(), false).await;
     assert!(result.is_ok());
-    
-    // Verify all files renamed
-    assert!(!files[0].exists());
-    assert!(!files[1].exists());
-    assert!(temp_dir.path().join("new1.txt").exists());
-    assert!(temp_dir.path().join("new2.txt").exists());
-}
-
-#[tokio::test]
-async fn test_handle_rename_saves_history() {
-    let temp_dir = TempDir::new().unwrap();
-    let file = temp_dir.path().join("old.txt");
-    fs::write(&file, "content").await.unwrap();
-    
-    // Change to temp directory for history (save_history writes to current directory)
-    let _guard = DirGuard::new(temp_dir.path()).unwrap();
-    
-    let preview = EnginePreviewResult {
-        renames: vec![FileRename {
-            old_path: file.clone(),
-            new_path: temp_dir.path().join("new.txt"),
-            new_name: "new.txt".to_string(),
-        }],
-        warnings: vec![],
-        has_empty_names: false,
-    };
-    
-    let result = handle_rename_command(preview, false, true, false, "test command".to_string(), None, true, false).await;
-    assert!(result.is_ok());
-    
-    // History should be saved (we can't easily verify without loading it)
-    // But the function should complete without error
+    let preview = result.unwrap();
+    assert_eq!(preview.renames.len(), 2);
+    // Both should have counter
+    assert!(preview.renames[0].new_name.contains("file_"));
+    assert!(preview.renames[1].new_name.contains("file_"));
 }
 

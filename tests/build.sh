@@ -11,8 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CRATE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Binary paths to check
-DEBUG_BINARY="$CRATE_ROOT/target/debug/fren"
-TEST_BINARY="$CRATE_ROOT/target/test/fren"
+DEBUG_BINARY="$CRATE_ROOT/target/debug/frencli"
+TEST_BINARY="$CRATE_ROOT/target/test/frencli"
 
 # Check if binary exists
 if [ -f "$DEBUG_BINARY" ] || [ -f "$TEST_BINARY" ]; then

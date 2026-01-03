@@ -1,5 +1,5 @@
 #!/bin/bash
-# Helper script to run fren binary tests
+# Helper script to run frencli binary tests
 # This script is executed from Rust tests to work around Command::new() issues
 # Usage: run_binary_test.sh <binary_path> <subcommand> [args...]
 

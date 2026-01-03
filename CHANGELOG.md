@@ -5,6 +5,17 @@ All notable changes to `frencli` will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-01-03
+
+### Changed
+- Updated `freneng` dependency from `0.1.1` to `0.1.2` to benefit from bug fixes:
+  - Fixed false positive `ParentNotWritable` validation errors
+  - Improved write permission checking with unique test filenames
+
+### Fixed
+- Updated all tests to work correctly with the new `freneng` 0.1.2 API
+- Fixed test command structures to use `rename` (preview) and `apply` (execution) instead of deprecated `make` subcommand
+
 ## [0.1.3] - 2025-12-22
 
 ### Added

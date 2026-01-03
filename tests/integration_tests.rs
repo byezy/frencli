@@ -20,7 +20,7 @@ fn can_execute_binary() -> bool {
 fn get_binary_path() -> PathBuf {
     // Cargo sets CARGO_BIN_EXE_<name> for integration tests - use this if available
     // This is the most reliable way to find the binary in test environments
-    if let Ok(bin_path) = std::env::var("CARGO_BIN_EXE_fren") {
+    if let Ok(bin_path) = std::env::var("CARGO_BIN_EXE_frencli") {
         let path = PathBuf::from(bin_path);
         if path.exists() {
             return path;
@@ -32,8 +32,8 @@ fn get_binary_path() -> PathBuf {
     let build_script = tests_dir.join("build.sh");
     
     // Try to run the build script if it exists and binary is missing
-    let debug_target = crate_root.join("target/debug/fren");
-    let test_target = crate_root.join("target/test/fren");
+    let debug_target = crate_root.join("target/debug/frencli");
+    let test_target = crate_root.join("target/test/frencli");
     
     if !debug_target.exists() && !test_target.exists() && build_script.exists() {
         // Run the build script to ensure binary is built
@@ -66,8 +66,8 @@ fn get_binary_path() -> PathBuf {
     }
 }
 
-/// Run fren with list -> make -> (optionally) rename sequence
-/// Returns the make preview output
+/// Run frencli with list -> rename -> (optionally) apply sequence
+/// Returns the rename preview output
 fn run_fren(pattern: &str, rename: Option<&str>) -> Result<String, String> {
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let binary = get_binary_path();
@@ -85,20 +85,20 @@ fn run_fren(pattern: &str, rename: Option<&str>) -> Result<String, String> {
     let script_abs = script_path.canonicalize()
         .map_err(|e| format!("Failed to canonicalize script path {:?}: {}", script_path, e))?;
     
-    // Build command: sh script_path binary_path list pattern make make_pattern
-    // The make subcommand takes the pattern as a positional argument (NOT a -t flag)
-    // We only need the preview output, not to actually rename, so we don't call rename
+    // Build command: sh script_path binary_path list pattern rename rename_pattern
+    // The rename subcommand takes the pattern as a positional argument (NOT a -t flag)
+    // We only need the preview output, not to actually apply, so we don't call apply
     let mut cmd = Command::new("sh");
     cmd.arg(&script_abs);
     cmd.arg(&binary_abs);
     cmd.arg("list");
     cmd.arg(pattern);
-    cmd.arg("make");
+    cmd.arg("rename");
     if let Some(r) = rename {
-        // Make pattern is a positional argument, not a flag
+        // Rename pattern is a positional argument, not a flag
         cmd.arg(r);
     }
-    // Don't add rename - just get the preview from make
+    // Don't add apply - just get the preview from rename
     
     // Execute via shell script - this works around Command::new() issues with binaries
     // Redirect stdin to /dev/null to prevent hanging on interactive prompts
@@ -117,7 +117,7 @@ fn run_fren(pattern: &str, rename: Option<&str>) -> Result<String, String> {
 
     if !output.status.success() {
         return Err(format!(
-            "fren failed with status {:?}: {}",
+            "frencli failed with status {:?}: {}",
             output.status,
             String::from_utf8_lossy(&output.stderr)
         ));
@@ -681,13 +681,13 @@ fn test_undo_functionality() {
     // Setup: create the original file
     std::fs::write(&f1, "original").unwrap();
     
-    // 1. Rename a file using proper subcommand structure: list -> make -> rename
+    // 1. Rename a file using proper subcommand structure: list -> rename -> apply
     let mut cmd1 = Command::new(&binary);
     cmd1.arg("list")
         .arg("undo_feat1.txt")
-        .arg("make")
-        .arg("undo_feat2.txt")
         .arg("rename")
+        .arg("undo_feat2.txt")
+        .arg("apply")
         .arg("--yes")
         .current_dir(&test_dir)
         .stdin(Stdio::null());
@@ -766,9 +766,9 @@ fn test_overwrite_functionality() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("ov_test1.tmp")
-        .arg("make")
-        .arg("ov_test2.tmp")
         .arg("rename")
+        .arg("ov_test2.tmp")
+        .arg("apply")
         .arg("--yes")
         .current_dir(&test_data_dir)
         .output()
@@ -783,9 +783,9 @@ fn test_overwrite_functionality() {
     let _output = Command::new(&binary)
         .arg("list")
         .arg("ov_test1.tmp")
-        .arg("make")
-        .arg("ov_test2.tmp")
         .arg("rename")
+        .arg("ov_test2.tmp")
+        .arg("apply")
         .arg("--yes")
         .arg("--overwrite")
         .current_dir(&test_data_dir)
@@ -877,9 +877,9 @@ fn test_undo_with_conflicts() {
     let mut cmd1 = Command::new(&binary);
     cmd1.arg("list")
         .arg("undo_conf1.txt")
-        .arg("make")
-        .arg("undo_conf2.txt")
         .arg("rename")
+        .arg("undo_conf2.txt")
+        .arg("apply")
         .arg("--yes")
         .current_dir(&test_dir)
         .stdin(Stdio::null());
@@ -914,9 +914,9 @@ fn test_undo_with_conflicts() {
     let output3 = Command::new(&binary)
         .arg("list")
         .arg("undo_conf1.txt")
-        .arg("make")
-        .arg("undo_conf2.txt")
         .arg("rename")
+        .arg("undo_conf2.txt")
+        .arg("apply")
         .arg("--yes")
         .current_dir(&test_dir)
         .output()
@@ -930,6 +930,9 @@ fn test_undo_with_conflicts() {
     assert!(f2.exists(), "Target file should exist after second rename");
     assert!(!f1.exists(), "Source file should not exist after second rename");
         
+    // Restore file2 for case 2
+    std::fs::write(&f2, "restored").unwrap();
+    
     // Case 2: Source path is occupied by a new file
     std::fs::write(&f1, "intruder").unwrap();
     let output4 = Command::new(&binary)
@@ -954,7 +957,7 @@ fn test_multiple_source_parts() {
     let binary = get_binary_path();
     let test_data_dir = workspace_root.join("test_data");
     
-    // Simulating 'fren list photo_001.jpg photo_002.jpg'
+    // Simulating 'frencli list photo_001.jpg photo_002.jpg'
     let output = Command::new(&binary)
         .arg("list")
         .arg("photo_001.jpg")
@@ -1047,7 +1050,7 @@ fn test_rename_with_nested_directory_structure() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("Documents/Projects/*.txt")
-        .arg("make")
+        .arg("apply")
         .arg("%P_%L%N_%C2.%E")
         .current_dir(&test_data_dir)
         .output()
@@ -1081,7 +1084,7 @@ fn test_rename_with_deeply_nested_backups() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("Backups/2024/January/*.dat")
-        .arg("make")
+        .arg("apply")
         .arg("%P_%L%N.%E")
         .current_dir(&test_data_dir)
         .output()
@@ -1115,7 +1118,7 @@ fn test_rename_with_log_files() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("Logs/Application/*.log")
-        .arg("make")
+        .arg("apply")
         .arg("%P_%L%N_%C2.%E")
         .current_dir(&test_data_dir)
         .output()
@@ -1153,7 +1156,7 @@ fn test_rename_with_mixed_file_types_across_directories() {
         .arg("Photos/*.jpg")
         .arg("Documents/*.pdf")
         .arg("Logs/*.log")
-        .arg("make")
+        .arg("apply")
         .arg("%P_%L%N_%C2.%E")
         .current_dir(&test_data_dir)
         .output()
@@ -1258,9 +1261,9 @@ fn test_empty_name_blocking() {
     let mut cmd = Command::new(&binary);
     cmd.arg("list")
         .arg("photo_001.jpg")
-        .arg("make")
-        .arg("%X/.//")
         .arg("rename")
+        .arg("%X/.//")
+        .arg("apply")
         .arg("--yes")
         .current_dir(&test_data_dir)
         .stdin(Stdio::null());
@@ -1281,7 +1284,7 @@ fn test_unknown_token_warning() {
     let mut cmd = Command::new(&binary);
     cmd.arg("list")
         .arg("photo_001.jpg")
-        .arg("make")
+        .arg("rename")
         .arg("test%Z")
         .current_dir(&test_data_dir)
         .stdin(Stdio::null());
@@ -1297,7 +1300,7 @@ fn test_overwrite_flag_help() {
     let binary = get_binary_path();
     
     let output = Command::new(&binary)
-        .arg("rename")
+        .arg("apply")
         .arg("--help")
         .output()
         .unwrap();
@@ -1333,7 +1336,7 @@ fn test_recursive_directory_support() {
         .arg("list")
         .arg("*.jpg")
         .arg("--recursive")
-        .arg("make")
+        .arg("rename")
         .arg("renamed_%C2.%E")
         .current_dir(&test_dir)
         .output()
@@ -1373,7 +1376,7 @@ fn test_recursive_with_double_star_pattern() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("**/*.txt")
-        .arg("make")
+        .arg("rename")
         .arg("renamed_%C2.%E")
         .current_dir(&test_dir)
         .output()
@@ -1406,7 +1409,7 @@ fn test_non_recursive_does_not_search_subdirs() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("*.txt")
-        .arg("make")
+        .arg("rename")
         .arg("renamed.%E")
         .current_dir(&test_dir)
         .output()
@@ -1420,6 +1423,126 @@ fn test_non_recursive_does_not_search_subdirs() {
     assert!(renames[0].0.contains("visible.txt"), "Should find visible.txt");
     
     // TempDir automatically cleans up on drop
+}
+
+#[test]
+fn test_list_with_files_from() {
+    if !can_execute_binary() {
+        println!("Skipping test: binary not available");
+        return;
+    }
+    
+    let temp_dir = TempDir::new().unwrap();
+    let test_dir = temp_dir.path();
+    
+    // Create test files
+    let file1 = test_dir.join("test1.txt");
+    let file2 = test_dir.join("test2.txt");
+    let file3 = test_dir.join("test3.jpg");
+    std::fs::write(&file1, "content1").unwrap();
+    std::fs::write(&file2, "content2").unwrap();
+    std::fs::write(&file3, "content3").unwrap();
+    
+    // Create a file list
+    let filelist = test_dir.join("filelist.txt");
+    std::fs::write(&filelist, format!("{}\n{}\n", file1.display(), file2.display())).unwrap();
+    
+    let binary = get_binary_path();
+    let output = Command::new(&binary)
+        .arg("list")
+        .arg("--files-from")
+        .arg(&filelist)
+        .current_dir(test_dir)
+        .output()
+        .expect("Failed to execute frencli");
+    
+    assert!(output.status.success(), "Command should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // Should list only the files from the file list
+    assert!(stdout.contains("test1.txt") || stdout.contains(file1.to_string_lossy().as_ref()));
+    assert!(stdout.contains("test2.txt") || stdout.contains(file2.to_string_lossy().as_ref()));
+    // Should NOT contain test3.jpg
+    assert!(!stdout.contains("test3.jpg"));
+}
+
+#[test]
+fn test_list_with_files_from_json() {
+    if !can_execute_binary() {
+        println!("Skipping test: binary not available");
+        return;
+    }
+    
+    let temp_dir = TempDir::new().unwrap();
+    let test_dir = temp_dir.path();
+    
+    // Create test files
+    let file1 = test_dir.join("test1.txt");
+    let file2 = test_dir.join("test2.txt");
+    std::fs::write(&file1, "content1").unwrap();
+    std::fs::write(&file2, "content2").unwrap();
+    
+    // Create a file list
+    let filelist = test_dir.join("filelist.txt");
+    std::fs::write(&filelist, format!("{}\n{}\n", file1.display(), file2.display())).unwrap();
+    
+    let binary = get_binary_path();
+    let output = Command::new(&binary)
+        .arg("list")
+        .arg("--files-from")
+        .arg(&filelist)
+        .arg("--json")
+        .current_dir(test_dir)
+        .output()
+        .expect("Failed to execute frencli");
+    
+    assert!(output.status.success(), "Command should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // Should output JSON array
+    assert!(stdout.trim().starts_with("["));
+    assert!(stdout.trim().ends_with("]"));
+}
+
+#[test]
+fn test_list_with_files_from_and_make() {
+    if !can_execute_binary() {
+        println!("Skipping test: binary not available");
+        return;
+    }
+    
+    let temp_dir = TempDir::new().unwrap();
+    let test_dir = temp_dir.path();
+    
+    // Create test files
+    let file1 = test_dir.join("test1.txt");
+    let file2 = test_dir.join("test2.txt");
+    std::fs::write(&file1, "content1").unwrap();
+    std::fs::write(&file2, "content2").unwrap();
+    
+    // Create a file list
+    let filelist = test_dir.join("filelist.txt");
+    std::fs::write(&filelist, format!("{}\n{}\n", file1.display(), file2.display())).unwrap();
+    
+    let binary = get_binary_path();
+    let output = Command::new(&binary)
+        .arg("list")
+        .arg("--files-from")
+        .arg(&filelist)
+        .arg("rename")
+        .arg("%N_backup.%E")
+        .arg("--json")
+        .current_dir(test_dir)
+        .output()
+        .expect("Failed to execute frencli");
+    
+    assert!(output.status.success(), "Command should succeed");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    
+    // Should output JSON with renames
+    assert!(stdout.contains("renames"));
+    assert!(stdout.contains("test1_backup.txt") || stdout.contains("test1_backup"));
+    assert!(stdout.contains("test2_backup.txt") || stdout.contains("test2_backup"));
 }
 
 #[test]
@@ -1540,7 +1663,7 @@ fn test_template_counter_3() {
         .arg("template")
         .arg("--use")
         .arg("counter-3")
-        .arg("rename")
+        .arg("apply")
         .arg("--yes")
         .current_dir(&test_data_dir)
         .stdin(Stdio::null())
@@ -1583,9 +1706,9 @@ fn test_interactive_mode_with_pattern() {
     let output = Command::new(&binary)
         .arg("list")
         .arg("*.txt")
-        .arg("make")
+        .arg("apply")
         .arg("%N.%E")
-        .arg("rename")
+        .arg("apply")
         .arg("--interactive")
         .current_dir(&test_data_dir)
         .output();
@@ -1605,7 +1728,7 @@ fn test_version_flag() {
     
     let stdout = String::from_utf8_lossy(&output.stdout);
     // Should output version number
-    assert!(stdout.contains("fren"));
+        assert!(stdout.contains("frencli"));
     assert!(stdout.contains("0.1.0") || stdout.matches(char::is_numeric).count() > 0);
     
     // Test long form (short flags not supported)
@@ -1615,7 +1738,7 @@ fn test_version_flag() {
     let output2 = cmd2.output().unwrap();
     
     let stdout2 = String::from_utf8_lossy(&output2.stdout);
-    assert!(stdout2.contains("fren"));
+    assert!(stdout2.contains("frencli"));
 }
 
 #[test]

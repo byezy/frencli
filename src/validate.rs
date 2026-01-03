@@ -13,7 +13,7 @@ use std::collections::HashMap;
 /// # Arguments
 /// 
 /// * `engine` - The renaming engine
-/// * `preview_result` - The preview result from make/template --use command
+/// * `preview_result` - The preview result from rename/template --use command
 /// * `skip_invalid` - If true, continue even if issues found (don't abort)
 /// 
 /// # Returns
@@ -22,7 +22,7 @@ use std::collections::HashMap;
 /// * Exits with code 1 if validation fails and skip_invalid=false
 /// 
 /// Note: Validation always checks for existing target files (overwrite=false).
-/// The `--overwrite` flag is only applicable to the `rename` subcommand.
+/// The `--overwrite` flag is only applicable to the `apply` subcommand.
 pub async fn handle_validate_command(
     engine: &RenamingEngine,
     preview_result: &EnginePreviewResult,

@@ -1,9 +1,9 @@
 //! Custom parser for handling multiple subcommands in a single invocation.
 //! 
-//! Allows commands like: `fren list *.txt make "%N.%E" rename`
+//! Allows commands like: `frencli list *.txt rename "%N.%E" apply`
 //! Order of subcommands doesn't matter - they're executed in logical order.
 //! 
-//! Standalone commands (undo, audit) must be used alone.
+//! Standalone commands (undo, audit, interactive) must be used alone.
 
 use std::collections::HashMap;
 
@@ -16,14 +16,14 @@ pub struct ParsedSubcommand {
 
 /// Parses command line arguments into subcommands.
 /// 
-/// Recognizes subcommands: list, make, validate, rename, template, undo, audit
+/// Recognizes subcommands: list, rename, validate, apply, template, undo, audit
 /// Extracts their arguments and flags.
 pub fn parse_multi_subcommand(args: Vec<String>) -> Vec<ParsedSubcommand> {
     let mut subcommands = Vec::new();
     let mut i = 0;
     
     // Known subcommand names
-    let known_subcommands = ["list", "make", "validate", "rename", "template", "undo", "audit", "interactive"];
+    let known_subcommands = ["list", "rename", "validate", "apply", "template", "undo", "audit", "interactive"];
     
     while i < args.len() {
         let arg = &args[i];
@@ -77,7 +77,7 @@ pub fn parse_multi_subcommand(args: Vec<String>) -> Vec<ParsedSubcommand> {
                     // Only --<something> is interpreted as flags. Single dash arguments
                     // are treated as positional arguments (filenames/patterns) for subcommands
                     // that accept them, or rejected if the subcommand doesn't accept positional args.
-                    let accepts_positional_args = matches!(subcommand_name.as_str(), "list" | "make");
+                    let accepts_positional_args = matches!(subcommand_name.as_str(), "list" | "rename");
                     
                     if accepts_positional_args {
                         // This could be a filename or pattern starting with '-', treat as positional arg

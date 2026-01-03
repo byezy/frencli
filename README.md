@@ -34,15 +34,15 @@ cp ./target/release/fren ~/.local/bin/
 ## Usage
 
 ```bash
-fren <SUBCOMMAND> [OPTIONS]
+frencli <SUBCOMMAND> [OPTIONS]
 ```
 
 ### Subcommands
 
 - `list`: List files matching patterns
+- `rename`: Generate a preview from a pattern
 - `validate`: Validate a rename pattern
-- `make`: Generate a preview from a pattern
-- `rename`: Directly rename files
+- `apply`: Apply rename operations (performs the rename)
 - `template`: Template operations (`list` or `use`)
 - `undo`: Undo operations (`check` or `apply`)
 - `audit`: View audit log entries
@@ -55,43 +55,43 @@ fren <SUBCOMMAND> [OPTIONS]
 
 ```bash
 # Easy to edit - just change the patterns at the end
-fren make "%N_backup.%E" rename --yes list /some/path/*.txt
+frencli rename "%N_backup.%E" apply --yes list /some/path/*.txt
 
 # Same command, different files - just edit the end
-fren make "%N_backup.%E" rename --yes list /some/other/*.jpg
+frencli rename "%N_backup.%E" apply --yes list /some/other/*.jpg
 ```
 
 All of these are equivalent:
-- `fren list *.txt make "%N.%E" rename`
-- `fren make "%N.%E" list *.txt rename`
-- `fren rename make "%N.%E" list *.txt`
+- `frencli list *.txt rename "%N.%E" apply`
+- `frencli rename "%N.%E" list *.txt apply`
+- `frencli apply rename "%N.%E" list *.txt`
 
-The internal execution order is always: `list` → `make`/`template --use` → `validate` → `rename`
+The internal execution order is always: `list` → `rename`/`template --use` → `validate` → `apply`
 
 ### Examples
 
 **List files:**
 ```bash
 # List files (shows just filenames)
-fren list "*.txt"
+frencli list "*.txt"
 
 # List with full paths
-fren list "*.txt" --fullpath
+frencli list "*.txt" --fullpath
 
 # List recursively
-fren list "*.txt" --recursive
+frencli list "*.txt" --recursive
 ```
 
 **Rename files:**
 ```bash
 # Preview a rename
-fren list "*.jpg" make "Vacation_%C3.%E"
+frencli list "*.jpg" rename "Vacation_%C3.%E"
 
 # Apply the rename
-fren list "*.jpg" make "Vacation_%C3.%E" rename --yes
+frencli list "*.jpg" rename "Vacation_%C3.%E" apply --yes
 
 # Use a template
-fren list "*.jpg" template --use photo-date rename --yes
+frencli list "*.jpg" template --use photo-date apply --yes
 ```
 
 ## Renaming Patterns

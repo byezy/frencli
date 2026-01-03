@@ -1,6 +1,6 @@
-//! Make subcommand for generating rename pattern previews.
+//! Rename subcommand for generating rename pattern previews.
 //! 
-//! This module handles the `fren make` command which applies a rename pattern
+//! This module handles the `frencli rename` command which applies a rename pattern
 //! (template) to matching files and generates a preview. All operations are async to match the async API of freneng.
 
 use freneng::{RenamingEngine, FrenError, EnginePreviewResult};
@@ -9,20 +9,20 @@ use std::path::PathBuf;
 use serde::Serialize;
 
 #[derive(Serialize)]
-struct MakeJsonOutput {
-    renames: Vec<MakeRenameJson>,
+struct RenameJsonOutput {
+    renames: Vec<RenameJsonItem>,
     warnings: Vec<String>,
     has_empty_names: bool,
 }
 
 #[derive(Serialize)]
-struct MakeRenameJson {
+struct RenameJsonItem {
     old_path: String,
     new_path: String,
     new_name: String,
 }
 
-/// Handles the make subcommand - generates and displays preview.
+/// Handles the rename subcommand - generates and displays preview.
 /// 
 /// # Arguments
 /// 
@@ -33,9 +33,9 @@ struct MakeRenameJson {
 /// 
 /// # Returns
 /// 
-/// * `Ok(EnginePreviewResult)` - Preview result that can be used by rename command
+/// * `Ok(EnginePreviewResult)` - Preview result that can be used by apply command
 /// * `Err(FrenError)` - If preview generation fails
-pub async fn handle_make_command(
+pub async fn handle_rename_command(
     engine: &RenamingEngine,
     files: Vec<PathBuf>,
     template: String,
@@ -57,8 +57,8 @@ pub async fn handle_make_command(
 
     if json {
         // Output as JSON
-        let json_output = MakeJsonOutput {
-            renames: preview_result.renames.iter().map(|r| MakeRenameJson {
+        let json_output = RenameJsonOutput {
+            renames: preview_result.renames.iter().map(|r| RenameJsonItem {
                 old_path: r.old_path.to_string_lossy().to_string(),
                 new_path: r.new_path.to_string_lossy().to_string(),
                 new_name: r.new_name.clone(),
@@ -88,8 +88,8 @@ pub async fn handle_make_command(
             std::process::exit(1);
         }
 
-        // make command only shows preview - use 'rename' to actually rename
-        println!("\nPreview mode. Use 'rename' subcommand to perform the renaming.");
+        // rename command only shows preview - use 'apply' to actually rename
+        println!("\nPreview mode. Use 'apply' subcommand to perform the renaming.");
     }
     
     Ok(preview_result)

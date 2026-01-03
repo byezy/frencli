@@ -22,18 +22,18 @@ fn test_parse_multiple_subcommands() {
     let args = vec![
         "list".to_string(),
         "*.txt".to_string(),
-        "make".to_string(),
-        "%N.%E".to_string(),
         "rename".to_string(),
+        "%N.%E".to_string(),
+        "apply".to_string(),
     ];
     let result = parse_multi_subcommand(args);
     
     assert_eq!(result.len(), 3);
     assert_eq!(result[0].name, "list");
     assert_eq!(result[0].args, vec!["*.txt"]);
-    assert_eq!(result[1].name, "make");
+    assert_eq!(result[1].name, "rename");
     assert_eq!(result[1].args, vec!["%N.%E"]);
-    assert_eq!(result[2].name, "rename");
+    assert_eq!(result[2].name, "apply");
     assert!(result[2].args.is_empty());
 }
 
@@ -93,11 +93,11 @@ fn test_parse_complex_command() {
         "--recursive".to_string(),
         "--exclude".to_string(),
         "*.tmp".to_string(),
-        "make".to_string(),
+        "rename".to_string(),
         "%N_backup.%E".to_string(),
         "validate".to_string(),
         "--skip-invalid".to_string(),
-        "rename".to_string(),
+        "apply".to_string(),
         "--yes".to_string(),
     ];
     let result = parse_multi_subcommand(args);
@@ -110,16 +110,16 @@ fn test_parse_complex_command() {
     assert!(has_flag(&result[0].flags, "recursive"));
     assert_eq!(get_flag_values(&result[0].flags, "exclude"), vec!["*.tmp"]);
     
-    // Check make
-    assert_eq!(result[1].name, "make");
+    // Check rename
+    assert_eq!(result[1].name, "rename");
     assert_eq!(result[1].args, vec!["%N_backup.%E"]);
     
     // Check validate
     assert_eq!(result[2].name, "validate");
     assert!(has_flag(&result[2].flags, "skip-invalid"));
     
-    // Check rename
-    assert_eq!(result[3].name, "rename");
+    // Check apply
+    assert_eq!(result[3].name, "apply");
     assert!(has_flag(&result[3].flags, "yes"));
 }
 
@@ -222,11 +222,11 @@ fn test_parse_subcommand_order_independence() {
     let args1 = vec![
         "list".to_string(),
         "*.txt".to_string(),
-        "make".to_string(),
+        "rename".to_string(),
         "%N.%E".to_string(),
     ];
     let args2 = vec![
-        "make".to_string(),
+        "rename".to_string(),
         "%N.%E".to_string(),
         "list".to_string(),
         "*.txt".to_string(),
@@ -239,8 +239,8 @@ fn test_parse_subcommand_order_independence() {
     assert_eq!(result1.len(), 2);
     assert_eq!(result2.len(), 2);
     assert_eq!(result1[0].name, "list");
-    assert_eq!(result1[1].name, "make");
-    assert_eq!(result2[0].name, "make");
+    assert_eq!(result1[1].name, "rename");
+    assert_eq!(result2[0].name, "rename");
     assert_eq!(result2[1].name, "list");
 }
 
@@ -265,17 +265,17 @@ fn test_short_flag_allowed_as_list_positional_arg() {
 }
 
 #[test]
-fn test_short_flag_allowed_as_make_positional_arg() {
-    // Short flags should be allowed as positional arguments for 'make'
+fn test_short_flag_allowed_as_rename_positional_arg() {
+    // Short flags should be allowed as positional arguments for 'rename'
     // because they could be patterns
     let args = vec![
-        "make".to_string(),
+        "rename".to_string(),
         "-y".to_string(),
     ];
     let result = parse_multi_subcommand(args);
     
     assert_eq!(result.len(), 1);
-    assert_eq!(result[0].name, "make");
+    assert_eq!(result[0].name, "rename");
     assert_eq!(result[0].args, vec!["-y"]);
 }
 

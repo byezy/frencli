@@ -9,16 +9,16 @@ use std::path::Path;
 fn get_binary_path() -> std::path::PathBuf {
     let workspace_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let target_dir = workspace_root.join("target").join("debug");
-    let binary_name = if cfg!(target_os = "windows") { "fren.exe" } else { "fren" };
+    let binary_name = if cfg!(target_os = "windows") { "frencli.exe" } else { "frencli" };
     target_dir.join(binary_name)
 }
 
 #[test]
-fn test_short_flag_rejected_for_rename() {
+fn test_short_flag_rejected_for_apply() {
     let binary = get_binary_path();
     
     let output = Command::new(&binary)
-        .arg("rename")
+        .arg("apply")
         .arg("-y")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -130,10 +130,10 @@ fn test_short_flag_rejected_when_not_positional() {
     let binary = get_binary_path();
     
     // Test that short flags are rejected for subcommands that don't accept positional args
-    // For subcommands that DO accept positional args (list, make), -X is treated as a filename
+    // For subcommands that DO accept positional args (list, rename), -X is treated as a filename
     let test_cases: Vec<Vec<&str>> = vec![
-        vec!["rename", "-y"],   // rename doesn't accept positional args, so -y is rejected
-        vec!["rename", "-o"],   // rename doesn't accept positional args, so -o is rejected
+        vec!["apply", "-y"],   // apply doesn't accept positional args, so -y is rejected
+        vec!["apply", "-o"],   // apply doesn't accept positional args, so -o is rejected
         vec!["undo", "--apply", "-y"],  // undo doesn't accept positional args after --apply
     ];
     
@@ -210,7 +210,7 @@ fn test_multiple_short_flags_rejected() {
     let binary = get_binary_path();
     
     let output = Command::new(&binary)
-        .arg("rename")
+        .arg("apply")
         .arg("-y")
         .arg("-o")
         .stdout(Stdio::piped())
@@ -230,7 +230,7 @@ fn test_short_flag_error_message_helpful() {
     let binary = get_binary_path();
     
     let output = Command::new(&binary)
-        .arg("rename")
+        .arg("apply")
         .arg("-y")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

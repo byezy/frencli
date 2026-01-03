@@ -31,7 +31,7 @@ async fn test_handle_audit_with_entries() {
     // Create some audit entries (using working_directory parameter, no cwd change needed)
     for i in 0..3 {
         let result = log_audit_entry(
-            &format!("fren list file{}.txt rename \"%N_backup.%E\" --yes", i),
+            &format!("frencli list file{}.txt rename \"%N_backup.%E\" --yes", i),
             Some("%N_backup.%E".to_string()),
             temp_dir.path().to_path_buf(),
             vec![(PathBuf::from(format!("file{}.txt", i)), PathBuf::from(format!("file{}_backup.txt", i)))],
@@ -79,7 +79,7 @@ async fn test_handle_audit_with_limit() {
     // Create multiple entries (using working_directory parameter, no cwd change needed)
     for i in 0..10 {
         let result = log_audit_entry(
-            &format!("fren rename \"%N{}.%E\" --yes", i),
+            &format!("frencli rename \"%N{}.%E\" --yes", i),
             Some(format!("%N{}.%E", i)),
             temp_dir.path().to_path_buf(),
             vec![],
@@ -108,7 +108,7 @@ async fn test_handle_audit_json_output() {
     
     // Create an entry (using working_directory parameter, no cwd change needed)
     let result = log_audit_entry(
-        "fren list *.txt rename \"%N.%E\" --yes",
+        "frencli list *.txt rename \"%N.%E\" --yes",
         Some("%N.%E".to_string()),
         temp_dir.path().to_path_buf(),
         vec![],

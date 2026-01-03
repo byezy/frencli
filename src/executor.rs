@@ -1,41 +1,80 @@
 //! Command execution orchestration.
 //! 
 //! This module handles the execution of parsed subcommands, including:
-//! - Standalone commands (undo, audit, template --list)
+//! - Standalone commands (undo, audit, interactive, template --list)
 //! - Subcommand argument extraction
-//! - Execution orchestration (list -> make -> validate -> rename)
+//! - Execution orchestration (list -> rename -> validate -> apply)
 
 use freneng::RenamingEngine;
 use crate::subcommands::{ParsedSubcommand, get_flag_value, has_flag, get_flag_values};
 use crate::templates::TemplateRegistry;
 use crate::list::find_files;
-use crate::make::handle_make_command;
 use crate::rename::handle_rename_command;
+use crate::apply::handle_apply_command;
 use crate::template::handle_template_command;
 use crate::validate::handle_validate_command;
 use crate::undo::{handle_undo_check, handle_undo_apply};
 use crate::audit::handle_audit_command;
+use crate::interactive::handle_interactive_command;
 use std::path::PathBuf;
+use std::fs;
+use std::io::{self, BufRead};
 
 /// Configuration extracted from subcommands
 #[derive(Debug, Default)]
 pub struct CommandConfig {
     pub list_patterns: Option<Vec<String>>,
+    pub list_files_from: Option<String>,  // Path to file containing file list, or "-" for stdin
     pub list_recursive: bool,
     pub list_exclude: Vec<String>,
     pub list_fullpath: bool,
     pub list_json: bool,
-    pub make_pattern: Option<String>,
-    pub make_json: bool,
+    pub rename_pattern: Option<String>,
+    pub rename_json: bool,
     pub template_use: Option<String>,
     pub validate_skip_invalid: bool,
-    pub rename_overwrite: bool,
-    pub rename_yes: bool,
-    pub rename_interactive: bool,
-    pub rename_json: bool,
+    pub apply_overwrite: bool,
+    pub apply_yes: bool,
+    pub apply_interactive: bool,
+    pub apply_json: bool,
 }
 
-/// Handles standalone commands that must be used alone (undo, audit, template --list)
+/// Reads file paths from a file or stdin
+/// 
+/// # Arguments
+/// 
+/// * `source` - File path, or "-" for stdin
+/// 
+/// # Returns
+/// 
+/// * `Ok(Vec<PathBuf>)` - List of file paths
+/// * `Err(String)` - Error message
+fn read_files_from_source(source: &str) -> Result<Vec<PathBuf>, String> {
+    let reader: Box<dyn BufRead> = if source == "-" {
+        // Read from stdin
+        Box::new(io::BufReader::new(io::stdin()))
+    } else {
+        // Read from file
+        let file = fs::File::open(source)
+            .map_err(|e| format!("Failed to open file '{}': {}", source, e))?;
+        Box::new(io::BufReader::new(file))
+    };
+    
+    let mut files = Vec::new();
+    for (line_num, line) in reader.lines().enumerate() {
+        let line = line.map_err(|e| format!("Error reading line {}: {}", line_num + 1, e))?;
+        let trimmed = line.trim();
+        // Skip empty lines and comments
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        files.push(PathBuf::from(trimmed));
+    }
+    
+    Ok(files)
+}
+
+/// Handles standalone commands that must be used alone (undo, audit, interactive, template --list)
 pub async fn handle_standalone_commands(
     subcommands: &[ParsedSubcommand],
     engine: &RenamingEngine,
@@ -54,7 +93,7 @@ pub async fn handle_standalone_commands(
     let has_undo = subcommands.iter().any(|s| s.name == "undo");
     if has_undo {
         if subcommands.len() > 1 {
-            return Err("'undo' cannot be used with other subcommands.\nThe 'undo' subcommand is very important and must be used alone.\n\nExamples:\n  fren undo --check\n  fren undo --apply\n  fren undo --apply --yes".to_string());
+            return Err("'undo' cannot be used with other subcommands.\nThe 'undo' subcommand is very important and must be used alone.\n\nExamples:\n  frencli undo --check\n  frencli undo --apply\n  frencli undo --apply --yes".to_string());
         }
         
         let undo_subcmd = subcommands.iter().find(|s| s.name == "undo").unwrap();
@@ -81,7 +120,7 @@ pub async fn handle_standalone_commands(
     let has_audit = subcommands.iter().any(|s| s.name == "audit");
     if has_audit {
         if subcommands.len() > 1 {
-            return Err("'audit' cannot be used with other subcommands.\nThe 'audit' subcommand is standalone and must be used alone.\n\nExamples:\n  fren audit\n  fren audit --limit 10\n  fren audit --json".to_string());
+            return Err("'audit' cannot be used with other subcommands.\nThe 'audit' subcommand is standalone and must be used alone.\n\nExamples:\n  frencli audit\n  frencli audit --limit 10\n  frencli audit --json".to_string());
         }
         
         let audit_subcmd = subcommands.iter().find(|s| s.name == "audit").unwrap();
@@ -94,18 +133,30 @@ pub async fn handle_standalone_commands(
         return Ok(Some(()));
     }
     
+    // Check if interactive is present - it must be used alone
+    let has_interactive = subcommands.iter().any(|s| s.name == "interactive");
+    if has_interactive {
+        if subcommands.len() > 1 {
+            return Err("'interactive' cannot be used with other subcommands.\nThe 'interactive' subcommand is standalone and must be used alone.\n\nExample:\n  frencli interactive".to_string());
+        }
+        
+        handle_interactive_command().await
+            .map_err(|e| format!("Error: {}", e))?;
+        return Ok(Some(()));
+    }
+    
     Ok(None)
 }
 
 /// Validates subcommand combinations
 pub fn validate_subcommand_combinations(subcommands: &[ParsedSubcommand]) -> Result<(), String> {
-    let has_make = subcommands.iter().any(|s| s.name == "make");
+    let has_rename = subcommands.iter().any(|s| s.name == "rename");
     let has_template_use = subcommands.iter().any(|s| {
         s.name == "template" && has_flag(&s.flags, "use")
     });
     
-    if has_make && has_template_use {
-        return Err("Cannot use both 'make' and 'template --use' in the same command.\nUse either:\n  - 'make <PATTERN>' to specify a pattern directly\n  - 'template --use <NAME|NUMBER>' to use a template pattern".to_string());
+    if has_rename && has_template_use {
+        return Err("Cannot use both 'rename' and 'template --use' in the same command.\nUse either:\n  - 'rename <PATTERN>' to specify a pattern directly\n  - 'template --use <NAME|NUMBER>' to use a template pattern".to_string());
     }
     
     Ok(())
@@ -118,23 +169,29 @@ pub fn extract_config(subcommands: &[ParsedSubcommand]) -> Result<CommandConfig,
     for subcmd in subcommands {
         match subcmd.name.as_str() {
             "list" => {
-                let patterns = subcmd.args.clone();
-                if patterns.is_empty() {
-                    return Err("No search pattern provided for 'list'.".to_string());
+                // Check for --files-from flag first
+                if let Some(files_from) = get_flag_value(&subcmd.flags, "files-from") {
+                    config.list_files_from = Some(files_from);
+                } else {
+                    // Use patterns if --files-from not provided
+                    let patterns = subcmd.args.clone();
+                    if patterns.is_empty() {
+                        return Err("No search pattern provided for 'list'. Use patterns or --files-from.".to_string());
+                    }
+                    config.list_patterns = Some(patterns);
                 }
-                config.list_patterns = Some(patterns);
                 config.list_recursive = has_flag(&subcmd.flags, "recursive");
                 config.list_exclude = get_flag_values(&subcmd.flags, "exclude");
                 config.list_fullpath = has_flag(&subcmd.flags, "fullpath");
                 config.list_json = has_flag(&subcmd.flags, "json");
             }
-            "make" => {
+            "rename" => {
                 let pattern = subcmd.args.first().cloned().unwrap_or_default();
                 if pattern.is_empty() {
-                    return Err("Make pattern required.".to_string());
+                    return Err("Rename pattern required.".to_string());
                 }
-                config.make_pattern = Some(pattern);
-                config.make_json = has_flag(&subcmd.flags, "json");
+                config.rename_pattern = Some(pattern);
+                config.rename_json = has_flag(&subcmd.flags, "json");
             }
             "template" => {
                 let use_template = get_flag_value(&subcmd.flags, "use");
@@ -145,11 +202,11 @@ pub fn extract_config(subcommands: &[ParsedSubcommand]) -> Result<CommandConfig,
             "validate" => {
                 config.validate_skip_invalid = has_flag(&subcmd.flags, "skip-invalid");
             }
-            "rename" => {
-                config.rename_overwrite = has_flag(&subcmd.flags, "overwrite");
-                config.rename_yes = has_flag(&subcmd.flags, "yes");
-                config.rename_interactive = has_flag(&subcmd.flags, "interactive");
-                config.rename_json = has_flag(&subcmd.flags, "json");
+            "apply" => {
+                config.apply_overwrite = has_flag(&subcmd.flags, "overwrite");
+                config.apply_yes = has_flag(&subcmd.flags, "yes");
+                config.apply_interactive = has_flag(&subcmd.flags, "interactive");
+                config.apply_json = has_flag(&subcmd.flags, "json");
             }
             _ => {}
         }
@@ -176,20 +233,20 @@ pub fn resolve_template_pattern(
     }
 }
 
-/// Gets the audit pattern from make pattern or template
+/// Gets the audit pattern from rename pattern or template
 pub fn get_audit_pattern(
-    make_pattern: &Option<String>,
+    rename_pattern: &Option<String>,
     template_use: &Option<String>,
     template_registry: &TemplateRegistry,
 ) -> Option<String> {
-    make_pattern.clone().or_else(|| {
+    rename_pattern.clone().or_else(|| {
         template_use.as_ref().and_then(|name| {
             resolve_template_pattern(template_registry, name).ok()
         })
     })
 }
 
-/// Executes the command pipeline: list -> make -> validate -> rename
+/// Executes the command pipeline: list -> rename -> validate -> apply
 pub async fn execute_command_pipeline(
     config: CommandConfig,
     subcommands: &[ParsedSubcommand],
@@ -201,14 +258,30 @@ pub async fn execute_command_pipeline(
     let mut files: Vec<PathBuf> = Vec::new();
     let mut preview_result: Option<freneng::EnginePreviewResult> = None;
     
-    if let Some(patterns) = config.list_patterns {
-        files = find_files(&patterns, config.list_recursive, &config.list_exclude).await
+    // Read files from --files-from if provided, otherwise use patterns
+    if let Some(files_from) = &config.list_files_from {
+        // Read files from file or stdin
+        files = read_files_from_source(files_from)
+            .map_err(|e| format!("Error reading files from {}: {}", files_from, e))?;
+        
+        // Display files if rename/template --use/validate/apply is not present
+        if config.rename_pattern.is_none() && config.template_use.is_none() 
+            && !subcommands.iter().any(|s| s.name == "validate")
+            && !subcommands.iter().any(|s| s.name == "apply") {
+            if config.list_json {
+                crate::list::display_files_json(&files, config.list_fullpath);
+            } else {
+                crate::list::display_files(&files, config.list_fullpath);
+            }
+        }
+    } else if let Some(patterns) = &config.list_patterns {
+        files = find_files(patterns, config.list_recursive, &config.list_exclude).await
             .map_err(|e| format!("Error finding files: {}", e))?;
         
-        // Display files if make/template --use/validate/rename is not present
-        if config.make_pattern.is_none() && config.template_use.is_none() 
+        // Display files if rename/template --use/validate/apply is not present
+        if config.rename_pattern.is_none() && config.template_use.is_none() 
             && !subcommands.iter().any(|s| s.name == "validate")
-            && !subcommands.iter().any(|s| s.name == "rename") {
+            && !subcommands.iter().any(|s| s.name == "apply") {
             if config.list_json {
                 crate::list::display_files_json(&files, config.list_fullpath);
             } else {
@@ -217,13 +290,13 @@ pub async fn execute_command_pipeline(
         }
     }
     
-    // Step 2: Execute make or template --use to generate preview (if present)
-    if let Some(pattern) = config.make_pattern.clone() {
+    // Step 2: Execute rename or template --use to generate preview (if present)
+    if let Some(pattern) = config.rename_pattern.clone() {
         if files.is_empty() {
             return Err("No files to process. 'list' subcommand is required to select files.".to_string());
         }
         
-        preview_result = Some(handle_make_command(&engine, files.clone(), pattern, config.make_json).await
+        preview_result = Some(handle_rename_command(&engine, files.clone(), pattern, config.rename_json).await
             .map_err(|e| format!("Error: {}", e))?);
     } else if let Some(template_name) = config.template_use.clone() {
         if files.is_empty() {
@@ -231,40 +304,40 @@ pub async fn execute_command_pipeline(
         }
         
         let pattern = resolve_template_pattern(template_registry, &template_name)?;
-        preview_result = Some(handle_make_command(&engine, files.clone(), pattern, config.make_json).await
+        preview_result = Some(handle_rename_command(&engine, files.clone(), pattern, config.rename_json).await
             .map_err(|e| format!("Error: {}", e))?);
     }
     
     // Step 3: Execute validate (if present)
     if subcommands.iter().any(|s| s.name == "validate") {
         let result = preview_result.as_ref()
-            .ok_or("No preview available. 'make' or 'template --use' subcommand is required to generate preview.")?;
+            .ok_or("No preview available. 'rename' or 'template --use' subcommand is required to generate preview.")?;
         handle_validate_command(&engine, result, config.validate_skip_invalid).await;
     }
     
-    // Step 4: Execute rename (if present)
-    if subcommands.iter().any(|s| s.name == "rename") {
+    // Step 4: Execute apply (if present)
+    if subcommands.iter().any(|s| s.name == "apply") {
         let result = preview_result.take()
-            .ok_or("No preview available. 'make' or 'template --use' subcommand is required to generate preview.")?;
+            .ok_or("No preview available. 'rename' or 'template --use' subcommand is required to generate preview.")?;
         
         let enable_audit = !subcommands.iter()
-            .any(|s| s.name == "rename" && has_flag(&s.flags, "no-audit"));
+            .any(|s| s.name == "apply" && has_flag(&s.flags, "no-audit"));
         
         let audit_pattern = get_audit_pattern(
-            &config.make_pattern,
+            &config.rename_pattern,
             &config.template_use,
             template_registry,
         );
         
-        handle_rename_command(
+        handle_apply_command(
             result, 
-            config.rename_overwrite, 
-            config.rename_yes, 
-            config.rename_interactive,
-            format!("fren {}", full_command),
+            config.apply_overwrite, 
+            config.apply_yes, 
+            config.apply_interactive,
+            format!("frencli {}", full_command),
             audit_pattern,
             enable_audit,
-            config.rename_json,
+            config.apply_json,
         ).await
             .map_err(|e| format!("Error: {}", e))?;
     }

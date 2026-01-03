@@ -7,18 +7,19 @@ mod template;
 mod help;
 mod executor;
 pub mod list;
-pub mod make;
 pub mod rename;
+pub mod apply;
 pub mod validate;
 pub mod undo;
 pub mod audit;
+pub mod interactive;
 use subcommands::{parse_multi_subcommand, has_flag};
 use executor::{handle_standalone_commands, validate_subcommand_combinations, extract_config, execute_command_pipeline};
 use templates::TemplateRegistry;
 
 /// Print version information
 fn print_version() {
-    println!("fren {}", env!("CARGO_PKG_VERSION"));
+    println!("frencli {}", env!("CARGO_PKG_VERSION"));
 }
 
 #[tokio::main]
@@ -66,9 +67,9 @@ async fn main() {
         if subcommands.len() > 1 {
             eprintln!("Error: '--help' cannot be used with multiple subcommands.");
             eprintln!("Use '--help' with a single subcommand, e.g.:");
-            eprintln!("  fren list --help");
-            eprintln!("  fren rename --help");
-            eprintln!("  fren validate --help");
+            eprintln!("  frencli list --help");
+            eprintln!("  frencli rename --help");
+            eprintln!("  frencli validate --help");
             std::process::exit(1);
         }
         
@@ -81,7 +82,7 @@ async fn main() {
     let engine = RenamingEngine;
     let template_registry = TemplateRegistry::new();
     
-    // Handle standalone commands (undo, audit, template --list)
+    // Handle standalone commands (undo, audit, interactive, template --list)
     match handle_standalone_commands(&subcommands, &engine, &template_registry).await {
         Ok(Some(_)) => return, // Command executed and completed
         Ok(None) => {}, // No standalone command, continue

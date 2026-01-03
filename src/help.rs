@@ -6,26 +6,26 @@
 pub fn print_main_help() {
     println!("Batch file renamer with pattern matching");
     println!();
-    println!("Usage: fren [OPTIONS] <SUBCOMMAND>...");
+    println!("Usage: frencli [OPTIONS] <SUBCOMMAND>...");
     println!();
     println!("SUBCOMMANDS:");
     println!("    list        List files matching patterns");
-    println!("    make        Make file names using a pattern (preview)");
+    println!("    rename      Generate rename preview using a pattern");
     println!("    validate    Validate a rename pattern");
-    println!("    rename      Rename files (applies immediately)");
+    println!("    apply       Apply rename operations (performs the rename)");
     println!("    template    Manage templates");
     println!("    undo        Undo operations");
     println!("    audit       View audit log");
-    println!("    interactive Apply rename interactively");
+    println!("    interactive    Interactive workflow guide");
     println!();
     println!("OPTIONS:");
     println!("    -h, --help          Print help");
     println!("    -V, --version       Print version");
     println!();
     println!("Examples:");
-    println!("  fren list *.txt");
-    println!("  fren list *.txt make \"%N_backup.%E\"");
-    println!("  fren list *.txt make \"%N_backup.%E\" rename --yes");
+    println!("  frencli list *.txt");
+    println!("  frencli list *.txt rename \"%N_backup.%E\"");
+    println!("  frencli list *.txt rename \"%N_backup.%E\" apply --yes");
 }
 
 /// Print help for a specific subcommand
@@ -34,7 +34,7 @@ pub fn print_subcommand_help(subcommand: &str) {
         "list" => print_list_help(),
         "rename" => print_rename_help(),
         "validate" => print_validate_help(),
-        "make" => print_make_help(),
+        "apply" => print_apply_help(),
         "template" => print_template_help(),
         "undo" => print_undo_help(),
         "audit" => print_audit_help(),
@@ -49,36 +49,38 @@ pub fn print_subcommand_help(subcommand: &str) {
 fn print_list_help() {
     println!("List files matching patterns");
     println!();
-    println!("Usage: fren list [OPTIONS] <PATTERN>...");
+    println!("Usage: frencli list [OPTIONS] <PATTERN>...");
+    println!("   or: frencli list [OPTIONS] --files-from <FILE>");
     println!();
     println!("Arguments:");
     println!("    <PATTERN>...    Search patterns (glob patterns, e.g., \"*.txt\")");
     println!();
     println!("Options:");
+    println!("    --files-from <FILE>           Read file paths from FILE (one per line)");
+    println!("                                   Use \"-\" to read from stdin");
     println!("    --recursive              Recursively search subdirectories (supports ** glob pattern)");
     println!("    --exclude <EXCLUDE>...    Exclude files matching these patterns");
     println!("    --fullpath                Display full paths instead of just filenames");
     println!("    --json                    Output as JSON array");
-    println!("    --rename <RENAME_PATTERN>  Chain to rename command with this pattern");
-    println!("    --overwrite               Overwrite existing files (when using --rename)");
-    println!("    --yes                     Skip confirmation prompt (when using --rename)");
+    println!("    --apply <RENAME_PATTERN>  Chain to apply command with this pattern");
+    println!("    --overwrite               Overwrite existing files (when using --apply)");
+    println!("    --yes                     Skip confirmation prompt (when using --apply)");
     println!("    -h, --help                Print help");
 }
 
-fn print_rename_help() {
-    println!("Directly rename files (applies immediately)");
+fn print_apply_help() {
+    println!("Apply rename operations (performs the rename)");
     println!();
     println!("Operates on files from the last `list` command.");
-    println!("Run `fren list` first to select files, then use `fren rename` to rename them.");
+    println!("Run `frencli list` first to select files, then use `frencli rename` to generate a preview,");
+    println!("and finally `frencli apply` to perform the rename.");
     println!();
-    println!("Usage: fren rename [OPTIONS] <RENAME_PATTERN>");
-    println!();
-    println!("Arguments:");
-    println!("    <RENAME_PATTERN>    Rename pattern/template (e.g., \"%N.%E\", \"%N2-7.%E\")");
+    println!("Usage: frencli apply [OPTIONS]");
     println!();
     println!("Options:");
     println!("    --overwrite    Overwrite existing files");
     println!("    --yes          Skip confirmation prompt");
+    println!("    --interactive  Interactive mode (edit filenames individually)");
     println!("    --json         Output as JSON");
     println!("    -h, --help     Print help");
 }
@@ -86,7 +88,7 @@ fn print_rename_help() {
 fn print_validate_help() {
     println!("Validate a rename pattern");
     println!();
-    println!("Usage: fren validate [OPTIONS] <PATTERN>...");
+    println!("Usage: frencli validate [OPTIONS] <PATTERN>...");
     println!();
     println!("Arguments:");
     println!("    <PATTERN>...    Search patterns (glob patterns, e.g., \"*.txt\")");
@@ -100,16 +102,17 @@ fn print_validate_help() {
     println!("    -h, --help                     Print help");
 }
 
-fn print_make_help() {
-    println!("Make file names using a pattern");
+fn print_rename_help() {
+    println!("Generate rename preview using a pattern");
     println!();
     println!("Generates a preview of file names using a pattern without applying the rename.");
     println!("Operates on files from the last `list` command.");
+    println!("Use `frencli apply` to actually perform the rename.");
     println!();
-    println!("Usage: fren make [OPTIONS] <RENAME_PATTERN>");
+    println!("Usage: frencli rename [OPTIONS] <RENAME_PATTERN>");
     println!();
     println!("Arguments:");
-    println!("    <RENAME_PATTERN>    Pattern to generate new file names");
+    println!("    <RENAME_PATTERN>    Pattern to generate new file names (e.g., \"%N.%E\", \"%N2-7.%E\")");
     println!();
     println!("Options:");
     println!("    --json         Output as JSON");
@@ -119,7 +122,7 @@ fn print_make_help() {
 fn print_template_help() {
     println!("Manage templates");
     println!();
-    println!("Usage: fren template [OPTIONS]");
+    println!("Usage: frencli template [OPTIONS]");
     println!();
     println!("Options:");
     println!("    --list        List available templates");
@@ -127,14 +130,14 @@ fn print_template_help() {
     println!("    -h, --help    Print help");
     println!();
     println!("Examples:");
-    println!("    fren template --list");
-    println!("    fren list *.txt template --use photo-date");
+    println!("    frencli template --list");
+    println!("    frencli list *.txt template --use photo-date");
 }
 
 fn print_undo_help() {
     println!("Undo operations");
     println!();
-    println!("Usage: fren undo [OPTIONS]");
+    println!("Usage: frencli undo [OPTIONS]");
     println!();
     println!("Options:");
     println!("    --check    Check undo status");
@@ -143,9 +146,9 @@ fn print_undo_help() {
     println!("    -h, --help  Print help");
     println!();
     println!("Examples:");
-    println!("    fren undo --check");
-    println!("    fren undo --apply");
-    println!("    fren undo --apply --yes");
+    println!("    frencli undo --check");
+    println!("    frencli undo --apply");
+    println!("    frencli undo --apply --yes");
 }
 
 fn print_audit_help() {
@@ -153,7 +156,7 @@ fn print_audit_help() {
     println!();
     println!("View audit log of rename operations.");
     println!();
-    println!("Usage: fren audit [OPTIONS]");
+    println!("Usage: frencli audit [OPTIONS]");
     println!();
     println!("Options:");
     println!("    --limit <N>    Limit number of entries to show");
@@ -161,27 +164,26 @@ fn print_audit_help() {
     println!("    -h, --help     Print help");
     println!();
     println!("Examples:");
-    println!("    fren audit");
-    println!("    fren audit --limit 10");
-    println!("    fren audit --json");
+    println!("    frencli audit");
+    println!("    frencli audit --limit 10");
+    println!("    frencli audit --json");
 }
 
 fn print_interactive_help() {
-    println!("Apply rename interactively");
+    println!("Interactive workflow guide");
     println!();
-    println!("Usage: fren interactive [OPTIONS]");
+    println!("Usage: frencli interactive [OPTIONS]");
     println!();
-    println!("Note: This subcommand is typically used with `list` and `make`:");
-    println!("    fren list <PATTERN>... [OPTIONS] make <RENAME_PATTERN> interactive");
-    println!();
-    println!("Arguments:");
-    println!("    <PATTERN>...        Search patterns (glob patterns, e.g., \"*.txt\")");
-    println!("    <RENAME_PATTERN>   Rename pattern/template");
+    println!("Guides you through the standard frencli workflow step by step:");
+    println!("  1. Select files to rename");
+    println!("  2. Define rename pattern");
+    println!("  3. Preview and validate");
+    println!("  4. Apply rename");
     println!();
     println!("Options:");
-    println!("    --recursive              Recursively search subdirectories");
-    println!("    --exclude <EXCLUDE>...    Exclude files matching these patterns");
-    println!("    --overwrite               Overwrite existing files");
-    println!("    -h, --help                Print help");
+    println!("    -h, --help     Print help");
+    println!();
+    println!("Examples:");
+    println!("    frencli interactive");
 }
 

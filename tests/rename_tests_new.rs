@@ -1,18 +1,18 @@
-//! Tests for the make subcommand module.
+//! Tests for the rename subcommand module.
 //! 
-//! These tests verify make command functionality including preview generation.
+//! These tests verify rename command functionality including preview generation.
 
-use frencli::make::handle_make_command;
+use frencli::rename::handle_rename_command;
 use freneng::RenamingEngine;
 use tempfile::TempDir;
 use tokio::fs;
 
 #[tokio::test]
-async fn test_handle_make_empty_files() {
+async fn test_handle_rename_empty_files() {
     let engine = RenamingEngine;
     let files = vec![];
     
-    let result = handle_make_command(&engine, files, "%N.%E".to_string(), false).await;
+    let result = handle_rename_command(&engine, files, "%N.%E".to_string(), false).await;
     assert!(result.is_err());
     if let Err(e) = result {
         assert!(e.to_string().contains("No files"));
@@ -20,7 +20,7 @@ async fn test_handle_make_empty_files() {
 }
 
 #[tokio::test]
-async fn test_handle_make_single_file() {
+async fn test_handle_rename_single_file() {
     let temp_dir = TempDir::new().unwrap();
     let file = temp_dir.path().join("test.txt");
     fs::write(&file, "content").await.unwrap();
@@ -28,7 +28,7 @@ async fn test_handle_make_single_file() {
     let engine = RenamingEngine;
     let files = vec![file];
     
-    let result = handle_make_command(&engine, files, "%N_backup.%E".to_string(), false).await;
+    let result = handle_rename_command(&engine, files, "%N_backup.%E".to_string(), false).await;
     assert!(result.is_ok());
     let preview = result.unwrap();
     assert_eq!(preview.renames.len(), 1);
@@ -36,7 +36,7 @@ async fn test_handle_make_single_file() {
 }
 
 #[tokio::test]
-async fn test_handle_make_multiple_files() {
+async fn test_handle_rename_multiple_files() {
     let temp_dir = TempDir::new().unwrap();
     let files = vec![
         temp_dir.path().join("file1.txt"),
@@ -49,14 +49,14 @@ async fn test_handle_make_multiple_files() {
     }
     
     let engine = RenamingEngine;
-    let result = handle_make_command(&engine, files, "%L%N.%E".to_string(), false).await;
+    let result = handle_rename_command(&engine, files, "%L%N.%E".to_string(), false).await;
     assert!(result.is_ok());
     let preview = result.unwrap();
     assert_eq!(preview.renames.len(), 3);
 }
 
 #[tokio::test]
-async fn test_handle_make_with_warnings() {
+async fn test_handle_rename_with_warnings() {
     let temp_dir = TempDir::new().unwrap();
     let file = temp_dir.path().join("test.txt");
     fs::write(&file, "content").await.unwrap();
@@ -66,7 +66,7 @@ async fn test_handle_make_with_warnings() {
     
     // Use pattern with unknown token to generate warning
     // Use %Z which is not a valid token
-    let result = handle_make_command(&engine, files, "%N_%Z.%E".to_string(), false).await;
+    let result = handle_rename_command(&engine, files, "%N_%Z.%E".to_string(), false).await;
     assert!(result.is_ok());
     let preview = result.unwrap();
     // Should have warnings about unknown token
@@ -74,7 +74,7 @@ async fn test_handle_make_with_warnings() {
 }
 
 #[tokio::test]
-async fn test_handle_make_empty_names_blocks() {
+async fn test_handle_rename_empty_names_blocks() {
     let temp_dir = TempDir::new().unwrap();
     let file = temp_dir.path().join("test.txt");
     fs::write(&file, "content").await.unwrap();
@@ -86,13 +86,13 @@ async fn test_handle_make_empty_names_blocks() {
     // Note: This will exit with code 1, so we can't easily test it
     // But we can test that it returns an error or exits
     // For now, we'll test with a pattern that doesn't generate empty names
-    let _result = handle_make_command(&engine, files, "%.%E".to_string(), false).await;
+    let _result = handle_rename_command(&engine, files, "%.%E".to_string(), false).await;
     // This might exit or return error depending on implementation
     // The actual behavior is that it exits, so this test verifies the function exists
 }
 
 #[tokio::test]
-async fn test_handle_make_preserves_extension() {
+async fn test_handle_rename_preserves_extension() {
     let temp_dir = TempDir::new().unwrap();
     let file = temp_dir.path().join("document.pdf");
     fs::write(&file, "content").await.unwrap();
@@ -100,14 +100,14 @@ async fn test_handle_make_preserves_extension() {
     let engine = RenamingEngine;
     let files = vec![file];
     
-    let result = handle_make_command(&engine, files, "%N_v2.%E".to_string(), false).await;
+    let result = handle_rename_command(&engine, files, "%N_v2.%E".to_string(), false).await;
     assert!(result.is_ok());
     let preview = result.unwrap();
     assert_eq!(preview.renames[0].new_name, "document_v2.pdf");
 }
 
 #[tokio::test]
-async fn test_handle_make_with_counter() {
+async fn test_handle_rename_with_counter() {
     let temp_dir = TempDir::new().unwrap();
     let files = vec![
         temp_dir.path().join("file.txt"),
@@ -119,7 +119,7 @@ async fn test_handle_make_with_counter() {
     }
     
     let engine = RenamingEngine;
-    let result = handle_make_command(&engine, files, "file_%C2.%E".to_string(), false).await;
+    let result = handle_rename_command(&engine, files, "file_%C2.%E".to_string(), false).await;
     assert!(result.is_ok());
     let preview = result.unwrap();
     assert_eq!(preview.renames.len(), 2);
