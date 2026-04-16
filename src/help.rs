@@ -22,10 +22,21 @@ pub fn print_main_help() {
     println!("    -h, --help          Print help");
     println!("    -V, --version       Print version");
     println!();
+    println!("Pattern quick reference:");
+    println!("  %N.%E               Keep name and extension");
+    println!("  backup_%N.%E        Add prefix");
+    println!("  %N_%C3.%E           Add zero-padded counter");
+    println!("  %N1-3.%E            Use chars 1..3 from name");
+    println!("  %L%N.%E             Lowercase result");
+    println!("  %N%R/_/-.%E         Replace '_' with '-'");
+    println!("  %N%X/[0-9]+/num.%E  Regex-replace digits");
+    println!();
     println!("Examples:");
     println!("  frencli list *.txt");
     println!("  frencli list *.txt rename \"%N_backup.%E\"");
     println!("  frencli list *.txt rename \"%N_backup.%E\" apply --yes");
+    println!();
+    println!("See more pattern examples: frencli rename --help");
 }
 
 /// Print help for a specific subcommand
@@ -113,6 +124,24 @@ fn print_rename_help() {
     println!();
     println!("Arguments:");
     println!("    <RENAME_PATTERN>    Pattern to generate new file names (e.g., \"%N.%E\", \"%N2-7.%E\")");
+    println!();
+    println!("Pattern examples:");
+    println!("    %N.%E                     Keep name and extension");
+    println!("    backup_%N.%E              Add prefix");
+    println!("    %N_%C3.%E                 Add zero-padded counter (001, 002, ...)");
+    println!("    %F                        Use full original filename");
+    println!("    %P_%N.%E                  Prefix with parent directory name");
+    println!("    %D_%H_%N.%E               Prefix with current date and time");
+    println!("    %FD_%FH_%N.%E             Prefix with file modified date and time");
+    println!("    %N1-3.%E                  Use chars 1..3 from filename");
+    println!("    %N5-.%E                   Use filename from char 5 to end");
+    println!("    %N--3.%E                  Trim last 3 chars from filename");
+    println!("    %L%N.%E                   Lowercase result");
+    println!("    %U%N.%E                   Uppercase result");
+    println!("    %T%N.%E                   Title-case result");
+    println!("    \"  %N  %M.%E\"              Trim surrounding spaces");
+    println!("    %N%R/_/-.%E               Replace all '_' with '-'");
+    println!("    %N%X/[0-9]+/num.%E        Regex replace digits with 'num'");
     println!();
     println!("Options:");
     println!("    --json         Output as JSON");
