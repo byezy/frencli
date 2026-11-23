@@ -6,7 +6,7 @@ Project record for this tree, reviewed 19 November 2026. Git facts are from this
 
 | | |
 |---|---|
-| Path | `~/development/tools/fren/frencli` |
+| Path | `~/dev/tools/fren/frencli` |
 | Kind | Rename toolkit |
 | Stack | Rust |
 | Repo | byezy/frencli |
